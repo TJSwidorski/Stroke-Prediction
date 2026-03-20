@@ -2,6 +2,15 @@
 
 This project applies a clinical medical research workflow to the [Stroke Prediction Dataset](https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset) to identify which combination of cardiovascular and lifestyle risk factors can be used to predict strokes, and determine if a model can be used to identify high-risk patients prior to the event.
 
+## Data source
+
+Soriano, F. (2021). *Stroke Prediction Dataset* [Data set]. Kaggle.
+https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset
+
+Original data sourced from a McKinsey & Company healthcare analytics competition
+via Analytics Vidhya. The dataset contains 5,110 de-identified patient records
+with 11 clinical features.
+
 ## Setup
 
 ```bash
