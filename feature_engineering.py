@@ -4,6 +4,37 @@ from sklearn.impute import KNNImputer
 
 df = pd.read_csv("data/stroke_data.csv")
 
+# --- Outlier detection (IQR method, 1.5x fence) ---
+OUTLIER_VARS = {
+    "age":               "age_outlier",
+    "avg_glucose_level": "glucose_outlier",
+    "bmi":               "bmi_outlier",
+}
+
+total_flagged_rows = set()
+
+for col, flag_col in OUTLIER_VARS.items():
+    q1 = df[col].quantile(0.25)
+    q3 = df[col].quantile(0.75)
+    iqr = q3 - q1
+    lower = q1 - 1.5 * iqr
+    upper = q3 + 1.5 * iqr
+
+    outlier_mask = (df[col] < lower) | (df[col] > upper)
+    df[flag_col] = outlier_mask
+    flagged = df.loc[outlier_mask, col]
+    total_flagged_rows.update(df.index[outlier_mask].tolist())
+
+    print(f"[{col}]")
+    print(f"  IQR bounds : {lower:.2f} – {upper:.2f}  (Q1={q1:.2f}, Q3={q3:.2f}, IQR={iqr:.2f})")
+    print(f"  Flagged rows: {outlier_mask.sum()}")
+    if outlier_mask.sum() > 0:
+        print(f"  Flagged range: {flagged.min():.2f} – {flagged.max():.2f}")
+    print()
+
+print(f"{len(total_flagged_rows)} total rows flagged across all variables.")
+print()
+
 # --- Encode categoricals for KNN distance calculations ---
 gender_map = {"Male": 0, "Female": 1, "Other": 2}
 married_map = {"No": 0, "Yes": 1}
