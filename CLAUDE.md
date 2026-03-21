@@ -43,6 +43,8 @@ Known data quality issues (handled in `feature_engineering.py`):
 - `bmi`: NaN values → filled via KNN (k=5)
 - `smoking_status`: `"Unknown"` entries → filled via KNN (k=5) using all other encoded features
 
+`feature_engineering.py` also appends boolean outlier flag columns (`age_outlier`, `glucose_outlier`, `bmi_outlier`) using IQR 1.5× fences — these are carried into `stroke_data_clean.csv` but are not used by the dashboard.
+
 ## Dashboard (`dashboard.py` + `analysis_utils.py`)
 
 Five tabs, each with an in-app `ℹ️` help expander:
@@ -54,6 +56,11 @@ Five tabs, each with an in-app `ℹ️` help expander:
 | 🔗 Joint Stroke Risk | Conditional stroke probability for a user-defined patient profile |
 | 🔥 Correlation Matrix | Pearson correlation heatmap (categoricals ordinally encoded) |
 | 🧪 Hypothesis Testing | Z-test results and forest plots for all features vs. the overall stroke rate |
+
+### Key implementation notes
+
+- `analysis_utils.ENCODE_MAP` is the **single source of truth** for ordinal encodings; it is used for both the correlation matrix display and as the reference for what `feature_engineering.py` replicates manually during KNN imputation. Keep them in sync if categories change.
+- `dashboard.py` caches data with `@st.cache_data`. After re-running the pipeline scripts, clear the Streamlit cache (menu → Clear cache, or restart the server) to pick up fresh data.
 
 ### Statistical methods (`analysis_utils.py`)
 
