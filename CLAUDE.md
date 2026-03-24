@@ -100,6 +100,14 @@ Standalone script that runs Phase 2 analysis and writes `data/phase2_hypothesis_
 - Significance column is colored via `style.map(_color_sig)`: `***` red, `**` orange, `*` dark yellow, `ns` gray.
 - Feature detail: numeric features use `px.box` on the live `df`; categorical features call `feature_stroke_stats()` for the bar chart and `load_phase2_detail()` for a per-level OR table below it. `load_phase2_detail()` is a `@st.cache_data` wrapper around `phase2_summary(load_data())`.
 - Interpretations expander (below the download button): iterates `CATEGORICAL` features. Binary features get one sentence using the top-level OR. Multi-level significant features get one bullet per category level (reference noted, non-reference levels get OR sentences via `_or_sentence()`). Non-significant multi-level features get a single no-association note. The `_or_sentence()` helper appends `(not statistically significant)` when `p_raw ≥ 0.05`.
+- **OR Forest Plot** (below the feature detail expander): combines two OR sources into a single `fp_frame` DataFrame.
+  - Binary features: top-level OR and CI parsed from the `phase2_hypothesis_results.csv` "Odds Ratio 95% CI" column via `_parse_or_ci(s)` (splits on whitespace, strips parens from CI token, splits on `-`).
+  - Non-binary categoricals: per-level dummy-coded ORs from `load_phase2_detail()` — reference levels shown as `"diamond"` markers at OR=1.0 with zeroed error bars and label `"(reference)"`; non-reference levels shown as `"circle"` markers.
+  - Sort order: `group_ord` descending (binary features sorted last → appear at top), `within_ord` ascending within each feature group. `group_ord` uses `CATEGORICAL.index(feat)` to preserve list order for categoricals.
+  - Per-level color: `lo > 1.0` → red, `hi < 1.0` → blue, else gray. Significance for per-level ORs is determined by CI excluding 1.0, not the overall chi-square p-value.
+  - Levels where OR is NaN (e.g. zero-cell cells like `Never_worked` in work_type) are skipped.
+  - Log-scale x-axis with OR=1.0 reference line. `height=max(350, len(fp_frame) * 70)`, `margin=dict(r=230)`.
+  - Caption dynamically lists reference categories for each multi-level feature by reading `p2_det_fp[f]["reference_category"]` from `load_phase2_detail()`.
 
 ### Table 1 rendering notes
 

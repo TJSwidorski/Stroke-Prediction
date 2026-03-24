@@ -876,3 +876,156 @@ with tab6:
                 f"Odds ratios computed vs reference category '{ref_cat}' (dummy coding). "
                 "OR > 1 indicates higher odds of stroke relative to the reference."
             )
+
+        st.divider()
+
+        # ── Odds Ratio Forest Plot ────────────────────────────────────────────
+        st.subheader("Odds Ratio Forest Plot")
+
+        with st.expander("ℹ️ What is an odds ratio?"):
+            st.markdown(
+                "An **odds ratio (OR)** measures how much more (or less) likely a patient "
+                "with a given characteristic is to have had a stroke, compared to a reference "
+                "group.\n\n"
+                "- **OR = 1.0** — no difference in stroke odds between the two groups "
+                "(the dashed reference line on this chart).\n"
+                "- **OR > 1.0** — the group has *higher* odds of stroke than the reference. "
+                "For example, OR = 3.70 for hypertension means hypertensive patients had "
+                "3.7× the stroke odds of non-hypertensive patients.\n"
+                "- **OR < 1.0** — the group has *lower* odds of stroke than the reference. "
+                "For example, OR = 0.06 for 'children' work type means children had 94% "
+                "lower stroke odds than Private-sector workers.\n\n"
+                "**Binary features** (hypertension, heart disease, ever married, residence "
+                "type) compare the two values of that feature directly.\n\n"
+                "**Multi-level features** (gender, work type, smoking status) use **dummy "
+                "coding**: each category is compared to a chosen reference category "
+                "(shown as a ◆ diamond at OR = 1.0). Reference categories are: "
+                "work type → *Private*, smoking status → *never smoked*, "
+                "gender → *Female*.\n\n"
+                "**Confidence intervals (error bars):** if the 95% CI crosses the OR = 1.0 "
+                "line, the result is not statistically significant. "
+                "**Color:** red = significantly higher risk, blue = significantly lower "
+                "risk, gray = not significant or reference."
+            )
+
+        def _parse_or_ci(s: str):
+            parts  = s.strip().split()
+            or_val = float(parts[0])
+            ci_str = parts[1].strip("()")
+            lo, hi = ci_str.split("-")
+            return float(or_val), float(lo), float(hi)
+
+        # ── Build combined forest plot rows ───────────────────────────────────
+        p2_det_fp      = load_phase2_detail()
+        non_binary_cats = [f for f in CATEGORICAL if f not in BINARY_FEATURES]
+        binary_cats     = [f for f in CATEGORICAL if f in BINARY_FEATURES]
+
+        fp_rows = []
+
+        # Multi-level categoricals — per-level dummy-coded ORs (appear at bottom)
+        for feat in non_binary_cats:
+            s   = p2_det_fp[feat]
+            ref = s["reference_category"]
+            # Reference row (diamond at 1.0)
+            fp_rows.append({
+                "y": f"{feat}: {ref}", "or": 1.0,
+                "lo": np.nan, "hi": np.nan,
+                "color": DIR_COLOR["—"], "symbol": "diamond",
+                "label": "(reference)", "group_ord": CATEGORICAL.index(feat),
+                "within_ord": 0,
+            })
+            for cat, lvl in s["levels"].items():
+                if lvl["is_reference"]:
+                    continue
+                ov = lvl.get("odds_ratio", np.nan)
+                if np.isnan(ov):
+                    continue  # skip zero-cell levels
+                lo, hi = lvl["or_ci_low"], lvl["or_ci_high"]
+                color = (
+                    DIR_COLOR["Higher ▲"] if lo > 1.0
+                    else DIR_COLOR["Lower ▼"] if hi < 1.0
+                    else DIR_COLOR["—"]
+                )
+                fp_rows.append({
+                    "y": f"{feat}: {cat}", "or": ov,
+                    "lo": lo, "hi": hi,
+                    "color": color, "symbol": "circle",
+                    "label": f"{ov:.2f} ({lo:.2f}-{hi:.2f})",
+                    "group_ord": CATEGORICAL.index(feat), "within_ord": ov,
+                })
+
+        # Binary features — top-level OR (appear at top)
+        or_mask = (
+            p2["Odds Ratio 95% CI"].notna() &
+            (p2["Odds Ratio 95% CI"].astype(str).str.strip() != "")
+        )
+        for _, row in p2[or_mask].iterrows():
+            ov, lo, hi = _parse_or_ci(row["Odds Ratio 95% CI"])
+            sig = str(row["Sig."]).strip()
+            color = (
+                DIR_COLOR["—"] if sig == "ns"
+                else DIR_COLOR["Higher ▲"] if ov > 1.0
+                else DIR_COLOR["Lower ▼"]
+            )
+            fp_rows.append({
+                "y": row["Feature"], "or": ov,
+                "lo": lo, "hi": hi,
+                "color": color, "symbol": "circle",
+                "label": row["Odds Ratio 95% CI"],
+                "group_ord": len(CATEGORICAL) + BINARY_FEATURES.index(row["Feature"]),
+                "within_ord": ov,
+            })
+
+        fp_frame = (
+            pd.DataFrame(fp_rows)
+            .sort_values(["group_ord", "within_ord"], ascending=[False, True])
+            .reset_index(drop=True)
+        )
+
+        err_hi = (fp_frame["hi"] - fp_frame["or"]).where(fp_frame["hi"].notna(), 0).tolist()
+        err_lo = (fp_frame["or"] - fp_frame["lo"]).where(fp_frame["lo"].notna(), 0).tolist()
+
+        fig_forest_or = go.Figure(go.Scatter(
+            x=fp_frame["or"],
+            y=fp_frame["y"],
+            mode="markers+text",
+            marker=dict(
+                color=fp_frame["color"].tolist(),
+                size=11,
+                symbol=fp_frame["symbol"].tolist(),
+            ),
+            error_x=dict(
+                type="data", symmetric=False,
+                array=err_hi, arrayminus=err_lo,
+                thickness=2, width=6,
+            ),
+            text=fp_frame["label"],
+            textposition="middle right",
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "OR: %{x:.2f}<br>"
+                "%{text}<extra></extra>"
+            ),
+        ))
+        fig_forest_or.add_vline(
+            x=1.0, line_dash="dash", line_color="gray", line_width=1.5,
+            annotation_text="OR = 1.0", annotation_position="top",
+        )
+        fig_forest_or.update_layout(
+            xaxis=dict(title="Odds Ratio (log scale)", type="log"),
+            yaxis=dict(title=None),
+            height=max(350, len(fp_frame) * 70),
+            showlegend=False,
+            margin=dict(r=230),
+        )
+        st.plotly_chart(fig_forest_or, use_container_width=True)
+        ref_notes = ", ".join(
+            f"**{f}** → *{p2_det_fp[f]['reference_category']}*"
+            for f in non_binary_cats
+        )
+        st.caption(
+            "Odds ratios on log scale. Values > 1 indicate increased stroke odds; "
+            "values < 1 indicate decreased odds. Error bars = 95% CI. "
+            f"◆ = reference category (OR = 1.0 by definition). "
+            f"Dummy-coding references: {ref_notes}."
+        )
