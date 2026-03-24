@@ -28,6 +28,7 @@ KAGGLE_KEY=your_key
 ```bash
 python retrieve_data.py       # Download dataset → data/stroke_data.csv
 python feature_engineering.py # Impute missing values → data/stroke_data_clean.csv + data/data_quality_report.txt
+python hypothesis_testing.py  # Group comparison analysis → data/phase2_hypothesis_results.csv + data/phase2_interpretation.txt
 streamlit run dashboard.py    # Launch interactive dashboard
 ```
 
@@ -39,7 +40,7 @@ Missing and unknown values are handled in `feature_engineering.py` using K-Neare
 
 ## Interactive Dashboard
 
-The Streamlit dashboard (`dashboard.py`) provides seven analysis tabs:
+The Streamlit dashboard (`dashboard.py`) provides eight analysis tabs:
 
 - **Cohort Overview** — Summary metrics, data quality report, and IQR outlier flag counts
 - **Table 1** — Clinical manuscript-style Table 1 stratified by stroke outcome; continuous variables as Mean (SD) with Mann-Whitney U p-values, categorical variables as n (%) with chi-square p-values; CSV download included
@@ -48,5 +49,6 @@ The Streamlit dashboard (`dashboard.py`) provides seven analysis tabs:
 - **Joint Stroke Risk** — Conditional stroke probability for a custom patient profile, shown on a gauge vs. the population baseline
 - **Correlation Matrix** — Pearson correlation heatmap across all features
 - **Hypothesis Testing** — Two-sided z-tests of each feature value's stroke rate against the overall population rate (p₀), with z-statistic bar chart and per-feature forest plots
+- **Phase 2 — Group Comparison** — Mann-Whitney U and chi-square tests comparing stroke vs. no-stroke groups directly, with odds ratios, effect sizes (Cohen's d / Cramér's V), a styled results table, per-feature detail charts, and an OR forest plot covering both binary and dummy-coded categorical variables
 
 Each tab includes an in-app help section explaining how to interpret the results.

@@ -25,7 +25,7 @@ Run scripts in order:
 
 1. **`retrieve_data.py`** — downloads dataset from Kaggle, saves to `data/stroke_data.csv`
 2. **`feature_engineering.py`** — KNN imputes missing BMI and Unknown smoking status, saves to `data/stroke_data_clean.csv` and `data/data_quality_report.txt`
-3. **`hypothesis_testing.py`** — Phase 2 group comparison analysis, prints results to console and saves to `data/phase2_hypothesis_results.csv`
+3. **`hypothesis_testing.py`** — Phase 2 group comparison analysis, prints results to console, saves to `data/phase2_hypothesis_results.csv`, and writes a manuscript-style interpretation to `data/phase2_interpretation.txt`
 4. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
 
 ```bash
@@ -90,6 +90,7 @@ Standalone script that runs Phase 2 analysis and writes `data/phase2_hypothesis_
 - `build_results(summary)` — flattens the nested `phase2_summary` dict into one row per feature with columns: Feature, Test, No Stroke, Stroke, Statistic, p-value, Effect Size, Odds Ratio 95% CI, Sig. An internal `_p_raw` float column is used for filtering and dropped before CSV export.
 - Categorical top-level "No Stroke" / "Stroke" summary columns show group N (`n=X,XXX`); per-level detail is in the `levels` sub-dict from `chi_square_summary` and is not repeated in the flat table.
 - `print_findings(summary, results)` — plain-English summary of significant features. Numeric: reports direction (higher/lower median) and Cohen's d magnitude. Binary (all 4): reports OR direction. Multi-level categorical: reports Cramér's V and iterates per-level ORs vs the reference category.
+- `write_interpretation(results_df, summary)` — writes `data/phase2_interpretation.txt` structured as: (1) header with run timestamp, (2) Primary findings — top 3 features ranked by effect size (`|d|` for numeric, Cramér's V for categorical), each with 2-3 manuscript-style sentences including a plain-English clinical implication, (3) Secondary findings — one sentence per remaining significant feature, (4) Non-significant features — brief list, (5) Limitations paragraph covering cross-sectional design, class imbalance, no multiple-comparison correction, and ordinal encoding caveat. Effect size ranking uses `_effect_sort_key()` which parses `"d=X.XXX (...)"` and `"V=X.XXX"` strings from the results DataFrame. Numeric sentences include per-feature units (years / mg/dL / kg/m²). File written with `encoding="utf-8"`.
 - IQR ranges and OR CIs use plain hyphens (`-`) not en-dashes to avoid encoding issues on Windows terminals.
 
 ### Phase 2 tab implementation notes
