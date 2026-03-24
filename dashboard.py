@@ -110,31 +110,50 @@ with tab0:
 with tab1:
     st.header("Feature Distributions")
 
-    with st.expander("ℹ️ How to read this chart"):
+    with st.expander("ℹ️ How to read these charts"):
         st.markdown(
-            "Shows the **count of patients** for each value of the selected feature. "
-            "Use this to understand how the dataset is distributed — e.g., how many patients "
-            "are in each age range or work category.\n\n"
-            "- **Split by stroke outcome** separates each bar into stroke vs. no-stroke patients, "
-            "making it easy to see whether one group is over-represented in a category.\n"
-            "- This shows *raw counts*, not rates. A large stroke bar doesn't necessarily mean "
-            "high risk — it may simply reflect a large group. See **Individual Stroke Risk** for rates."
+            "**Categorical features** show a stacked percentage bar: each bar sums to 100%, "
+            "so you can compare stroke prevalence across categories regardless of group size.\n\n"
+            "**Numeric features** show two charts:\n"
+            "- A **count histogram** (optionally split by outcome) to see where patients are concentrated.\n"
+            "- A **box plot** split by outcome to compare the central tendency and spread between "
+            "stroke and non-stroke patients.\n\n"
+            "For rates and significance testing, see **Individual Stroke Risk**."
         )
 
     col_a, col_b = st.columns([2, 1])
     with col_a:
         feature = st.selectbox("Feature", ALL_FEATURES, key="dist_feat")
     with col_b:
-        split = st.checkbox("Split by stroke outcome", value=True)
+        if feature in NUMERIC:
+            split = st.checkbox("Split by stroke outcome", value=True)
+        else:
+            split = True
+            st.empty()
 
     if feature in CATEGORICAL:
-        fig = px.histogram(
-            df, x=feature,
-            color="stroke_label" if split else None,
-            barmode="group",
+        counts = (
+            df.groupby([feature, "stroke_label"])
+            .size()
+            .reset_index(name="count")
+        )
+        counts["pct"] = (
+            counts["count"]
+            / counts.groupby(feature)["count"].transform("sum")
+            * 100
+        )
+        fig = px.bar(
+            counts, x=feature, y="pct", color="stroke_label",
+            barmode="stack",
             color_discrete_map=STROKE_COLOR,
-            labels={"stroke_label": "Outcome"},
+            labels={"pct": "Patients (%)", "stroke_label": "Outcome"},
             category_orders={"stroke_label": ["No Stroke", "Stroke"]},
+        )
+        fig.update_layout(legend_title_text="Outcome", yaxis_title="Patients (%)")
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Each bar shows the percentage breakdown of stroke vs. no-stroke patients "
+            "within that category, removing raw count bias."
         )
     else:
         fig = px.histogram(
@@ -147,9 +166,26 @@ with tab1:
             labels={"stroke_label": "Outcome"},
             category_orders={"stroke_label": ["No Stroke", "Stroke"]},
         )
+        fig.update_layout(legend_title_text="Outcome")
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Count of patients across the selected numeric feature"
+            + (" split by stroke outcome." if split else ".")
+        )
 
-    fig.update_layout(legend_title_text="Outcome")
-    st.plotly_chart(fig, use_container_width=True)
+        fig_box = px.box(
+            df, x="stroke_label", y=feature,
+            color="stroke_label",
+            color_discrete_map=STROKE_COLOR,
+            labels={"stroke_label": "Outcome", feature: feature},
+            category_orders={"stroke_label": ["No Stroke", "Stroke"]},
+        )
+        fig_box.update_layout(showlegend=False, xaxis_title="Outcome")
+        st.plotly_chart(fig_box, use_container_width=True)
+        st.caption(
+            "Box plot comparing the median, spread, and outliers of the selected feature "
+            "between stroke and non-stroke patients."
+        )
 
 
 # ── Tab 2: Individual Stroke Risk ─────────────────────────────────────────────

@@ -52,7 +52,7 @@ Six tabs, each with an in-app `ℹ️` help expander:
 | Tab | Description |
 |-----|-------------|
 | 🏥 Cohort Overview | Summary metrics, data quality report, and IQR outlier flag table |
-| 📊 Distributions | Raw patient counts per feature value, optionally split by stroke outcome |
+| 📊 Distributions | Categorical: stacked % bar (stroke vs. no-stroke share per category). Numeric: overlapping count histogram + box plot split by outcome |
 | 🎯 Individual Stroke Risk | Stroke rate per value/bin with 95% AC confidence intervals and significance color coding |
 | 🔗 Joint Stroke Risk | Conditional stroke probability for a user-defined patient profile |
 | 🔥 Correlation Matrix | Pearson correlation heatmap (categoricals ordinally encoded) |
@@ -64,6 +64,7 @@ Six tabs, each with an in-app `ℹ️` help expander:
 - `dashboard.py` caches data with `@st.cache_data`. After re-running the pipeline scripts, clear the Streamlit cache (menu → Clear cache, or restart the server) to pick up fresh data.
 - `load_data()` adds a synthetic `stroke_label` column (`{0: "No Stroke", 1: "Stroke"}`) that is not in the CSV. Code that exposes raw rows to users must drop it explicitly (e.g. `filtered.drop(columns=["stroke_label"])`).
 - `CI_MIN_N = 30` (minimum group size to render CI bars) and the `hover_ci()` helper are defined in `dashboard.py`, not `analysis_utils.py`. `hover_ci` is defined inside the tab2 block but referenced in the tab5 forest plot — keep them in the same file if refactoring.
+- In the Distributions tab, categorical features use a stacked 100% bar chart (`px.bar` with `barmode="stack"`, percentages computed manually before passing to Plotly). Numeric features show an overlapping histogram plus a `px.box` below it. The "Split by stroke outcome" checkbox is only rendered for numeric features; for categoricals the split is always shown.
 
 ### Statistical methods (`analysis_utils.py`)
 
