@@ -139,13 +139,35 @@ with tab_t1:
             return "font-weight: bold; color: #c0392b"
         return ""
 
+    with st.expander("ℹ️ How to read this table"):
+        st.markdown(
+            "Table 1 follows standard clinical manuscript format. Each row represents "
+            "one patient characteristic, stratified by stroke outcome.\n\n"
+            "- **Continuous variables** (age, BMI, glucose) are shown as Mean (SD). "
+            "The p-value is from the **Mann-Whitney U test**, a non-parametric test "
+            "chosen because these variables are right-skewed — older age and high "
+            "glucose are concentrated in a minority of patients — which violates "
+            "the normality assumption required by a t-test. This combination "
+            "(Mean/SD descriptive + Mann-Whitney p-value) is the standard approach "
+            "in clinical literature: Mean/SD is retained for interpretability and "
+            "comparability across studies, while the test is chosen to match the "
+            "actual data distribution.\n"
+            "- **Categorical variables** are shown as n (%). The p-value is from a "
+            "chi-square test of independence on the full contingency table.\n"
+            "- A **\\*** next to a p-value indicates statistical significance at α = 0.05."
+        )
+
     styled = display.style.map(_highlight_sig, subset=["p-value"])
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
     st.caption(
-        "Continuous variables reported as Mean (SD). "
-        "P-values from Mann-Whitney U test (continuous) and chi-square test (categorical). "
-        "* p < 0.05."
+        "Continuous variables reported as Mean (SD) for descriptive comparability. "
+        "P-values from Mann-Whitney U test (continuous, chosen because age, BMI, and "
+        "glucose are right-skewed and do not satisfy normality assumptions) and "
+        "chi-square test (categorical). * p < 0.05. "
+        "This follows standard clinical reporting practice: descriptive statistics "
+        "summarize central tendency, while inferential tests are selected based on "
+        "distributional properties."
     )
 
     csv_bytes = display.to_csv(index=False).encode()

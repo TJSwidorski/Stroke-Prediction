@@ -115,6 +115,8 @@ Standalone script that runs Phase 2 analysis and writes `data/phase2_hypothesis_
 - Variable names are kept as a plain column (not the DataFrame index) to avoid non-unique index errors from identically-named sub-rows across features (e.g. `    0` appears under both `hypertension` and `heart_disease`). Use `hide_index=True` in `st.dataframe`.
 - Significant p-values are bolded red via `display.style.map()` (not `applymap`, which is removed in pandas 2.1+). The styler checks for a trailing `*` in the string.
 - The CSV download encodes the unstyled display DataFrame directly (`display.to_csv(index=False).encode()`).
+- An `ℹ️ How to read this table` expander sits directly above the dataframe. It explains the Mean (SD) + Mann-Whitney pairing rationale (right-skewed distributions violate t-test normality; Mean/SD retained for comparability per clinical convention), chi-square for categoricals, and the `*` significance marker.
+- The `st.caption` below the table explicitly notes that Mean (SD) is for descriptive comparability and that test selection follows distributional properties — addressing the ambiguity of showing a parametric descriptive alongside a non-parametric p-value.
 
 ### Numeric binning
 
