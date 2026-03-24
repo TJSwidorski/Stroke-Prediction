@@ -25,11 +25,13 @@ Run scripts in order:
 
 1. **`retrieve_data.py`** — downloads dataset from Kaggle, saves to `data/stroke_data.csv`
 2. **`feature_engineering.py`** — KNN imputes missing BMI and Unknown smoking status, saves to `data/stroke_data_clean.csv` and `data/data_quality_report.txt`
-3. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
+3. **`hypothesis_testing.py`** — Phase 2 group comparison analysis, prints results to console and saves to `data/phase2_hypothesis_results.csv`
+4. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
 
 ```bash
 python retrieve_data.py
 python feature_engineering.py
+python hypothesis_testing.py
 streamlit run dashboard.py
 ```
 
@@ -78,6 +80,15 @@ Seven tabs, each with an in-app `ℹ️` help expander:
   - `chi_square_summary(df, feature)` — categorical features. Returns per-level n and stroke rate (%), chi-square + p-value, Cramér's V. For `BINARY_FEATURES` (`hypertension`, `heart_disease`) also adds odds ratio + 95% CI via `stats.contingency.odds_ratio` (scipy ≥ 1.7), oriented as feature=1 → stroke=1.
   - `phase2_summary(df)` — runs both over all features; returns a dict keyed by feature name.
 - `BINARY_FEATURES = ["hypertension", "heart_disease"]` is a module-level constant used to gate odds ratio computation.
+
+## `hypothesis_testing.py`
+
+Standalone script that runs Phase 2 analysis and writes `data/phase2_hypothesis_results.csv`. Imports `phase2_summary` from `analysis_utils`; no test logic lives in this file.
+
+- `build_results(summary)` — flattens the nested `phase2_summary` dict into one row per feature with columns: Feature, Test, No Stroke, Stroke, Statistic, p-value, Effect Size, Odds Ratio 95% CI, Sig. An internal `_p_raw` float column is used for filtering and dropped before CSV export.
+- Categorical top-level "No Stroke" / "Stroke" summary columns show group N (`n=X,XXX`); per-level detail is in the `levels` sub-dict from `chi_square_summary` and is not repeated in the flat table.
+- `print_findings(summary, results)` — plain-English summary of significant features. Numeric: reports direction (higher/lower median) and Cohen's d magnitude. Binary: reports OR direction. Multi-level categorical: reports Cramér's V only (no single direction).
+- IQR ranges and OR CIs use plain hyphens (`-`) not en-dashes to avoid encoding issues on Windows terminals.
 
 ### Table 1 rendering notes
 
