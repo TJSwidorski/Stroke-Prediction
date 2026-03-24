@@ -9,6 +9,7 @@ from analysis_utils import (
     DEFAULT_BIN_WIDTHS, BIN_WIDTH_OPTIONS,
     feature_stroke_stats, all_features_stats,
     apply_filters, encoded_for_correlation,
+    table1_stats,
 )
 
 st.set_page_config(page_title="Stroke Prediction Analysis", layout="wide")
@@ -32,6 +33,11 @@ def load_all_stats():
     return all_features_stats(load_data())
 
 
+@st.cache_data
+def load_table1():
+    return table1_stats(load_data())
+
+
 try:
     df = load_data()
 except FileNotFoundError:
@@ -41,8 +47,9 @@ except FileNotFoundError:
 p0 = df["stroke"].mean()
 overall_rate = p0 * 100
 
-tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab_t1, tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🏥 Cohort Overview",
+    "📋 Table 1",
     "📊 Distributions",
     "🎯 Individual Stroke Risk",
     "🔗 Joint Stroke Risk",
@@ -104,6 +111,44 @@ with tab0:
             pd.DataFrame(outlier_rows).set_index("Variable"),
             use_container_width=True,
         )
+
+
+# ── Tab T1: Table 1 ───────────────────────────────────────────────────────────
+with tab_t1:
+    st.header("Table 1 — Cohort Characteristics by Stroke Outcome")
+
+    n_no  = int((df["stroke"] == 0).sum())
+    n_yes = int((df["stroke"] == 1).sum())
+
+    col_no  = f"No Stroke (n={n_no:,})"
+    col_yes = f"Stroke (n={n_yes:,}, {overall_rate:.1f}%)"
+
+    t1 = load_table1()
+
+    display = t1[["variable", "no_stroke_fmt", "stroke_fmt", "p_value_fmt"]].copy()
+    display.columns = ["Variable", col_no, col_yes, "p-value"]
+
+    def _highlight_sig(val):
+        if isinstance(val, str) and val.endswith("*"):
+            return "font-weight: bold; color: #c0392b"
+        return ""
+
+    styled = display.style.map(_highlight_sig, subset=["p-value"])
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+
+    st.caption(
+        "Continuous variables reported as Mean (SD). "
+        "P-values from Mann-Whitney U test (continuous) and chi-square test (categorical). "
+        "* p < 0.05."
+    )
+
+    csv_bytes = display.to_csv(index=False).encode()
+    st.download_button(
+        label="⬇ Download Table 1 as CSV",
+        data=csv_bytes,
+        file_name="table1.csv",
+        mime="text/csv",
+    )
 
 
 # ── Tab 1: Distributions ──────────────────────────────────────────────────────

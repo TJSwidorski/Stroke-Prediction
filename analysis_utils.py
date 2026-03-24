@@ -161,3 +161,74 @@ def encoded_for_correlation(df: pd.DataFrame) -> pd.DataFrame:
     for col, mapping in ENCODE_MAP.items():
         df_enc[col] = df_enc[col].map(mapping)
     return df_enc
+
+
+# ── Table 1 (clinical manuscript format) ───────────────────────────────────────
+
+def _fmt_pvalue(p: float) -> str:
+    """Format a p-value for Table 1 display. Appends * when p < 0.05."""
+    if np.isnan(p):
+        return ""
+    if p < 0.001:
+        return "< 0.001 *"
+    if p < 0.05:
+        return f"{p:.3f} *"
+    return f"{p:.3f}"
+
+
+def table1_stats(df: pd.DataFrame) -> pd.DataFrame:
+    """Build a clinical Table 1 stratified by stroke outcome.
+
+    Returns a DataFrame with columns:
+        variable      – feature name (sub-rows are indented with leading spaces)
+        no_stroke_fmt – formatted summary string for the No Stroke group
+        stroke_fmt    – formatted summary string for the Stroke group
+        p_value       – raw float p-value (NaN for sub-rows)
+        p_value_fmt   – formatted p-value string with * flag (empty for sub-rows)
+        is_subrow     – True for categorical level rows
+
+    Continuous features: Mean (SD), Mann-Whitney U test (two-sided).
+    Categorical features: n (%), chi-square test on the full contingency table.
+    """
+    no_stroke = df[df["stroke"] == 0]
+    stroke    = df[df["stroke"] == 1]
+
+    rows = []
+
+    for feature in ALL_FEATURES:
+        if feature in NUMERIC:
+            ns_vals = no_stroke[feature].dropna()
+            s_vals  = stroke[feature].dropna()
+            _, p = stats.mannwhitneyu(ns_vals, s_vals, alternative="two-sided")
+            rows.append({
+                "variable":     feature,
+                "no_stroke_fmt": f"{ns_vals.mean():.1f} ({ns_vals.std():.1f})",
+                "stroke_fmt":    f"{s_vals.mean():.1f} ({s_vals.std():.1f})",
+                "p_value":       float(p),
+                "p_value_fmt":   _fmt_pvalue(p),
+                "is_subrow":     False,
+            })
+        else:
+            contingency = pd.crosstab(df[feature], df["stroke"])
+            _, p, _, _ = stats.chi2_contingency(contingency)
+            rows.append({
+                "variable":     feature,
+                "no_stroke_fmt": "",
+                "stroke_fmt":    "",
+                "p_value":       float(p),
+                "p_value_fmt":   _fmt_pvalue(p),
+                "is_subrow":     False,
+            })
+            for cat in sorted(df[feature].dropna().unique()):
+                n_no  = int((no_stroke[feature] == cat).sum())
+                n_yes = int((stroke[feature] == cat).sum())
+                rows.append({
+                    "variable":     f"    {cat}",
+                    "no_stroke_fmt": f"{n_no} ({n_no / len(no_stroke) * 100:.1f}%)",
+                    "stroke_fmt":    f"{n_yes} ({n_yes / len(stroke) * 100:.1f}%)",
+                    "p_value":       np.nan,
+                    "p_value_fmt":   "",
+                    "is_subrow":     True,
+                })
+
+    return pd.DataFrame(rows)

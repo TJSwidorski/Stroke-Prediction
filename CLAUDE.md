@@ -47,11 +47,12 @@ Known data quality issues (handled in `feature_engineering.py`):
 
 ## Dashboard (`dashboard.py` + `analysis_utils.py`)
 
-Six tabs, each with an in-app `ℹ️` help expander:
+Seven tabs, each with an in-app `ℹ️` help expander:
 
 | Tab | Description |
 |-----|-------------|
 | 🏥 Cohort Overview | Summary metrics, data quality report, and IQR outlier flag table |
+| 📋 Table 1 | Clinical manuscript-style Table 1 stratified by stroke outcome, with CSV download |
 | 📊 Distributions | Categorical: stacked % bar (stroke vs. no-stroke share per category). Numeric: overlapping count histogram + box plot split by outcome |
 | 🎯 Individual Stroke Risk | Stroke rate per value/bin with 95% AC confidence intervals and significance color coding |
 | 🔗 Joint Stroke Risk | Conditional stroke probability for a user-defined patient profile |
@@ -71,6 +72,13 @@ Six tabs, each with an in-app `ℹ️` help expander:
 - **Agresti-Coull CI** — confidence intervals for each group's stroke proportion; only rendered on charts when group N ≥ 30
 - **Proportion z-test** — two-sided test against p₀ (overall stroke rate); significance stars: `***` p<0.001, `**` p<0.01, `*` p<0.05, `ns`
 - Bar/forest plot color coding: 🔴 significantly higher risk, 🔵 significantly lower, ⬜ not significant
+- **Table 1** (`table1_stats(df)`) — returns one row per feature plus indented sub-rows for categorical levels. Continuous: Mean (SD), two-sided Mann-Whitney U (`stats.mannwhitneyu`). Categorical: n (%), chi-square (`stats.chi2_contingency`) on the full contingency table; p-value on the parent row, blank on sub-rows. `_fmt_pvalue()` formats to `< 0.001 *`, `0.XXX *`, or `0.XXX`. Dashboard wraps this in `load_table1()` with `@st.cache_data`.
+
+### Table 1 rendering notes
+
+- Variable names are kept as a plain column (not the DataFrame index) to avoid non-unique index errors from identically-named sub-rows across features (e.g. `    0` appears under both `hypertension` and `heart_disease`). Use `hide_index=True` in `st.dataframe`.
+- Significant p-values are bolded red via `display.style.map()` (not `applymap`, which is removed in pandas 2.1+). The styler checks for a trailing `*` in the string.
+- The CSV download encodes the unstyled display DataFrame directly (`display.to_csv(index=False).encode()`).
 
 ### Numeric binning
 
