@@ -27,7 +27,7 @@ KAGGLE_KEY=your_key
 
 ```bash
 python retrieve_data.py       # Download dataset → data/stroke_data.csv
-python feature_engineering.py # Impute missing values → data/stroke_data_clean.csv
+python feature_engineering.py # Impute missing values → data/stroke_data_clean.csv + data/data_quality_report.txt
 streamlit run dashboard.py    # Launch interactive dashboard
 ```
 
@@ -39,9 +39,11 @@ Missing and unknown values are handled in `feature_engineering.py` using K-Neare
 
 ## Interactive Dashboard
 
-The Streamlit dashboard (`dashboard.py`) provides five analysis tabs:
+The Streamlit dashboard (`dashboard.py`) provides seven analysis tabs:
 
-- **Distributions** — Patient counts per feature, with optional stroke outcome split
+- **Cohort Overview** — Summary metrics, data quality report, and IQR outlier flag counts
+- **Table 1** — Clinical manuscript-style Table 1 stratified by stroke outcome; continuous variables as Mean (SD) with Mann-Whitney U p-values, categorical variables as n (%) with chi-square p-values; CSV download included
+- **Distributions** — Categorical features as stacked percentage bars (stroke share per category); numeric features as overlapping count histogram plus a box plot split by outcome
 - **Individual Stroke Risk** — Stroke rate per feature value or bin, with 95% Agresti-Coull confidence intervals and hypothesis test color coding (red = significantly higher risk, blue = significantly lower, gray = not significant)
 - **Joint Stroke Risk** — Conditional stroke probability for a custom patient profile, shown on a gauge vs. the population baseline
 - **Correlation Matrix** — Pearson correlation heatmap across all features

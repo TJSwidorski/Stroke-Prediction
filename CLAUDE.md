@@ -73,6 +73,11 @@ Seven tabs, each with an in-app `ℹ️` help expander:
 - **Proportion z-test** — two-sided test against p₀ (overall stroke rate); significance stars: `***` p<0.001, `**` p<0.01, `*` p<0.05, `ns`
 - Bar/forest plot color coding: 🔴 significantly higher risk, 🔵 significantly lower, ⬜ not significant
 - **Table 1** (`table1_stats(df)`) — returns one row per feature plus indented sub-rows for categorical levels. Continuous: Mean (SD), two-sided Mann-Whitney U (`stats.mannwhitneyu`). Categorical: n (%), chi-square (`stats.chi2_contingency`) on the full contingency table; p-value on the parent row, blank on sub-rows. `_fmt_pvalue()` formats to `< 0.001 *`, `0.XXX *`, or `0.XXX`. Dashboard wraps this in `load_table1()` with `@st.cache_data`.
+- **Phase 2 group comparison** — three functions comparing stroke=1 vs stroke=0 directly (not against population rate):
+  - `mann_whitney_summary(df, feature)` — continuous features. Returns median + IQR per group, Mann-Whitney U + two-sided p-value, Cohen's d (pooled SD, positive = higher in stroke group), and magnitude label (`negligible` |d|<0.2, `small` 0.2–0.5, `medium` 0.5–0.8, `large` >0.8).
+  - `chi_square_summary(df, feature)` — categorical features. Returns per-level n and stroke rate (%), chi-square + p-value, Cramér's V. For `BINARY_FEATURES` (`hypertension`, `heart_disease`) also adds odds ratio + 95% CI via `stats.contingency.odds_ratio` (scipy ≥ 1.7), oriented as feature=1 → stroke=1.
+  - `phase2_summary(df)` — runs both over all features; returns a dict keyed by feature name.
+- `BINARY_FEATURES = ["hypertension", "heart_disease"]` is a module-level constant used to gate odds ratio computation.
 
 ### Table 1 rendering notes
 

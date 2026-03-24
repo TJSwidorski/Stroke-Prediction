@@ -6,6 +6,7 @@ CATEGORICAL = ["gender", "hypertension", "heart_disease", "ever_married",
                "work_type", "Residence_type", "smoking_status"]
 NUMERIC = ["age", "avg_glucose_level", "bmi"]
 ALL_FEATURES = CATEGORICAL + NUMERIC
+BINARY_FEATURES = ["hypertension", "heart_disease"]
 
 DEFAULT_BIN_WIDTHS = {"age": 10, "avg_glucose_level": 50, "bmi": 5}
 
@@ -232,3 +233,118 @@ def table1_stats(df: pd.DataFrame) -> pd.DataFrame:
                 })
 
     return pd.DataFrame(rows)
+
+
+# ── Phase 2: group comparison statistics (stroke=1 vs stroke=0) ────────────────
+
+def mann_whitney_summary(df: pd.DataFrame, feature: str) -> dict:
+    """Continuous feature comparison between stroke and no-stroke groups.
+
+    Returns median, IQR, Mann-Whitney U statistic + two-sided p-value,
+    Cohen's d (pooled SD), and a magnitude label.
+    """
+    g0 = df[df["stroke"] == 0][feature].dropna()
+    g1 = df[df["stroke"] == 1][feature].dropna()
+
+    u_stat, p_val = stats.mannwhitneyu(g0, g1, alternative="two-sided")
+
+    n0, n1 = len(g0), len(g1)
+    pooled_sd = np.sqrt(
+        ((n0 - 1) * g0.std() ** 2 + (n1 - 1) * g1.std() ** 2) / (n0 + n1 - 2)
+    )
+    cohens_d = float((g1.mean() - g0.mean()) / pooled_sd)
+
+    abs_d = abs(cohens_d)
+    if abs_d < 0.2:
+        magnitude = "negligible"
+    elif abs_d < 0.5:
+        magnitude = "small"
+    elif abs_d < 0.8:
+        magnitude = "medium"
+    else:
+        magnitude = "large"
+
+    return {
+        "feature": feature,
+        "no_stroke": {
+            "n":      n0,
+            "median": float(g0.median()),
+            "q1":     float(g0.quantile(0.25)),
+            "q3":     float(g0.quantile(0.75)),
+        },
+        "stroke": {
+            "n":      n1,
+            "median": float(g1.median()),
+            "q1":     float(g1.quantile(0.25)),
+            "q3":     float(g1.quantile(0.75)),
+        },
+        "u_stat":    float(u_stat),
+        "p_value":   float(p_val),
+        "cohens_d":  cohens_d,
+        "magnitude": magnitude,
+    }
+
+
+def chi_square_summary(df: pd.DataFrame, feature: str) -> dict:
+    """Categorical feature comparison between stroke and no-stroke groups.
+
+    Returns per-level n and stroke rate, chi-square statistic + p-value,
+    Cramér's V effect size, and (for binary features) odds ratio with 95% CI.
+    """
+    g0 = df[df["stroke"] == 0]
+    g1 = df[df["stroke"] == 1]
+
+    contingency = pd.crosstab(df[feature], df["stroke"])
+    chi2, p_val, dof, _ = stats.chi2_contingency(contingency)
+
+    n = len(df)
+    min_dim = min(contingency.shape) - 1
+    cramers_v = float(np.sqrt(chi2 / (n * min_dim))) if min_dim > 0 else np.nan
+
+    levels = {}
+    for cat in sorted(df[feature].dropna().unique()):
+        n_no  = int((g0[feature] == cat).sum())
+        n_yes = int((g1[feature] == cat).sum())
+        levels[cat] = {
+            "no_stroke_n":    n_no,
+            "no_stroke_rate": n_no  / len(g0) * 100,
+            "stroke_n":       n_yes,
+            "stroke_rate":    n_yes / len(g1) * 100,
+        }
+
+    result = {
+        "feature":   feature,
+        "levels":    levels,
+        "chi2_stat": float(chi2),
+        "p_value":   float(p_val),
+        "dof":       int(dof),
+        "cramers_v": cramers_v,
+    }
+
+    if feature in BINARY_FEATURES:
+        table_2x2 = (
+            contingency
+            .reindex(index=[0, 1], columns=[0, 1], fill_value=0)
+            .values
+        )
+        or_result = stats.contingency.odds_ratio(table_2x2)
+        ci = or_result.confidence_interval(confidence_level=0.95)
+        result["odds_ratio"]  = float(or_result.statistic)
+        result["or_ci_low"]   = float(ci.low)
+        result["or_ci_high"]  = float(ci.high)
+
+    return result
+
+
+def phase2_summary(df: pd.DataFrame) -> dict:
+    """Run group comparison statistics for all features (stroke=1 vs stroke=0).
+
+    Returns a dict keyed by feature name. Numeric features use
+    mann_whitney_summary; categorical features use chi_square_summary.
+    """
+    summary = {}
+    for feature in NUMERIC:
+        summary[feature] = mann_whitney_summary(df, feature)
+    for feature in CATEGORICAL:
+        summary[feature] = chi_square_summary(df, feature)
+    return summary
