@@ -49,7 +49,7 @@ Known data quality issues (handled in `feature_engineering.py`):
 
 ## Dashboard (`dashboard.py` + `analysis_utils.py`)
 
-Seven tabs, each with an in-app `ℹ️` help expander:
+Eight tabs, each with an in-app `ℹ️` help expander:
 
 | Tab | Description |
 |-----|-------------|
@@ -60,6 +60,7 @@ Seven tabs, each with an in-app `ℹ️` help expander:
 | 🔗 Joint Stroke Risk | Conditional stroke probability for a user-defined patient profile |
 | 🔥 Correlation Matrix | Pearson correlation heatmap (categoricals ordinally encoded) |
 | 🧪 Hypothesis Testing | Z-test results and forest plots for all features vs. the overall stroke rate |
+| 📊 Phase 2 — Group Comparison | Metric cards, color-coded results table, and per-feature detail charts from `phase2_hypothesis_results.csv` |
 
 ### Key implementation notes
 
@@ -77,9 +78,10 @@ Seven tabs, each with an in-app `ℹ️` help expander:
 - **Table 1** (`table1_stats(df)`) — returns one row per feature plus indented sub-rows for categorical levels. Continuous: Mean (SD), two-sided Mann-Whitney U (`stats.mannwhitneyu`). Categorical: n (%), chi-square (`stats.chi2_contingency`) on the full contingency table; p-value on the parent row, blank on sub-rows. `_fmt_pvalue()` formats to `< 0.001 *`, `0.XXX *`, or `0.XXX`. Dashboard wraps this in `load_table1()` with `@st.cache_data`.
 - **Phase 2 group comparison** — three functions comparing stroke=1 vs stroke=0 directly (not against population rate):
   - `mann_whitney_summary(df, feature)` — continuous features. Returns median + IQR per group, Mann-Whitney U + two-sided p-value, Cohen's d (pooled SD, positive = higher in stroke group), and magnitude label (`negligible` |d|<0.2, `small` 0.2–0.5, `medium` 0.5–0.8, `large` >0.8).
-  - `chi_square_summary(df, feature)` — categorical features. Returns per-level n and stroke rate (%), chi-square + p-value, Cramér's V. For `BINARY_FEATURES` (`hypertension`, `heart_disease`) also adds odds ratio + 95% CI via `stats.contingency.odds_ratio` (scipy ≥ 1.7), oriented as feature=1 → stroke=1.
+  - `chi_square_summary(df, feature)` — categorical features. Returns per-level n and stroke rate (%), per-level odds ratios (dummy coded vs reference category), chi-square + p-value, Cramér's V, and `reference_category`. For `BINARY_FEATURES` also adds a top-level OR via `stats.contingency.odds_ratio` (scipy ≥ 1.7) using `contingency.values` directly (works for both integer and string-indexed tables). Reference category defaults to first sorted value; overridden by `REFERENCE_CATEGORIES`.
   - `phase2_summary(df)` — runs both over all features; returns a dict keyed by feature name.
-- `BINARY_FEATURES = ["hypertension", "heart_disease"]` is a module-level constant used to gate odds ratio computation.
+- `BINARY_FEATURES = ["hypertension", "heart_disease", "ever_married", "Residence_type"]` — gates top-level OR computation. `ever_married` ("No"/"Yes") and `Residence_type` ("Rural"/"Urban") are string-valued but treated as binary.
+- `REFERENCE_CATEGORIES = {"work_type": "Private", "smoking_status": "never smoked"}` — overrides the default first-sorted reference for dummy-coded per-level ORs. Add entries here to change any feature's reference without touching the function logic.
 
 ## `hypothesis_testing.py`
 
@@ -87,8 +89,17 @@ Standalone script that runs Phase 2 analysis and writes `data/phase2_hypothesis_
 
 - `build_results(summary)` — flattens the nested `phase2_summary` dict into one row per feature with columns: Feature, Test, No Stroke, Stroke, Statistic, p-value, Effect Size, Odds Ratio 95% CI, Sig. An internal `_p_raw` float column is used for filtering and dropped before CSV export.
 - Categorical top-level "No Stroke" / "Stroke" summary columns show group N (`n=X,XXX`); per-level detail is in the `levels` sub-dict from `chi_square_summary` and is not repeated in the flat table.
-- `print_findings(summary, results)` — plain-English summary of significant features. Numeric: reports direction (higher/lower median) and Cohen's d magnitude. Binary: reports OR direction. Multi-level categorical: reports Cramér's V only (no single direction).
+- `print_findings(summary, results)` — plain-English summary of significant features. Numeric: reports direction (higher/lower median) and Cohen's d magnitude. Binary (all 4): reports OR direction. Multi-level categorical: reports Cramér's V and iterates per-level ORs vs the reference category.
 - IQR ranges and OR CIs use plain hyphens (`-`) not en-dashes to avoid encoding issues on Windows terminals.
+
+### Phase 2 tab implementation notes
+
+- Reads `data/phase2_hypothesis_results.csv` at render time (not cached). If the file is missing, shows a warning and skips the rest of the tab content via an `if p2 is not None:` guard — do not use `st.stop()` inside a tab block, as it halts the entire app script and prevents other tabs from rendering.
+- `_parse_p(s)` converts formatted p-value strings (`"< 0.001"` → `0.0005`, else `float(s)`) to enable numeric comparisons for the metric cards.
+- OR > 2.0 metric extracts the point estimate by splitting the `"X.XX (Y.YY-Z.ZZ)"` string on whitespace and parsing the first token.
+- Significance column is colored via `style.map(_color_sig)`: `***` red, `**` orange, `*` dark yellow, `ns` gray.
+- Feature detail: numeric features use `px.box` on the live `df`; categorical features call `feature_stroke_stats()` for the bar chart and `load_phase2_detail()` for a per-level OR table below it. `load_phase2_detail()` is a `@st.cache_data` wrapper around `phase2_summary(load_data())`.
+- Interpretations expander (below the download button): iterates `CATEGORICAL` features. Binary features get one sentence using the top-level OR. Multi-level significant features get one bullet per category level (reference noted, non-reference levels get OR sentences via `_or_sentence()`). Non-significant multi-level features get a single no-association note. The `_or_sentence()` helper appends `(not statistically significant)` when `p_raw ≥ 0.05`.
 
 ### Table 1 rendering notes
 

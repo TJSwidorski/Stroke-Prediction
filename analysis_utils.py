@@ -6,7 +6,13 @@ CATEGORICAL = ["gender", "hypertension", "heart_disease", "ever_married",
                "work_type", "Residence_type", "smoking_status"]
 NUMERIC = ["age", "avg_glucose_level", "bmi"]
 ALL_FEATURES = CATEGORICAL + NUMERIC
-BINARY_FEATURES = ["hypertension", "heart_disease"]
+BINARY_FEATURES = ["hypertension", "heart_disease", "ever_married", "Residence_type"]
+
+# Override the default reference category (first sorted value) for specific features.
+REFERENCE_CATEGORIES = {
+    "work_type":      "Private",
+    "smoking_status": "never smoked",
+}
 
 DEFAULT_BIN_WIDTHS = {"age": 10, "avg_glucose_level": 50, "bmi": 5}
 
@@ -288,8 +294,10 @@ def mann_whitney_summary(df: pd.DataFrame, feature: str) -> dict:
 def chi_square_summary(df: pd.DataFrame, feature: str) -> dict:
     """Categorical feature comparison between stroke and no-stroke groups.
 
-    Returns per-level n and stroke rate, chi-square statistic + p-value,
-    Cramér's V effect size, and (for binary features) odds ratio with 95% CI.
+    Returns per-level n and stroke rate with per-level odds ratios (dummy coded
+    vs the first sorted category as reference), chi-square statistic + p-value,
+    Cramér's V effect size, and (for binary features) a top-level odds ratio.
+    OR = odds(stroke | category) / odds(stroke | reference).
     """
     g0 = df[df["stroke"] == 0]
     g1 = df[df["stroke"] == 1]
@@ -301,35 +309,53 @@ def chi_square_summary(df: pd.DataFrame, feature: str) -> dict:
     min_dim = min(contingency.shape) - 1
     cramers_v = float(np.sqrt(chi2 / (n * min_dim))) if min_dim > 0 else np.nan
 
+    all_cats  = sorted(df[feature].dropna().unique())
+    ref_cat   = REFERENCE_CATEGORIES.get(feature, all_cats[0])
+    n_no_ref  = int((g0[feature] == ref_cat).sum())
+    n_yes_ref = int((g1[feature] == ref_cat).sum())
+
     levels = {}
-    for cat in sorted(df[feature].dropna().unique()):
+    for cat in all_cats:
         n_no  = int((g0[feature] == cat).sum())
         n_yes = int((g1[feature] == cat).sum())
-        levels[cat] = {
+        entry = {
             "no_stroke_n":    n_no,
             "no_stroke_rate": n_no  / len(g0) * 100,
             "stroke_n":       n_yes,
             "stroke_rate":    n_yes / len(g1) * 100,
+            "is_reference":   (cat == ref_cat),
         }
+        if cat == ref_cat:
+            entry.update({"odds_ratio": 1.0, "or_ci_low": np.nan, "or_ci_high": np.nan})
+        else:
+            table_2x2 = np.array([[n_no_ref, n_yes_ref], [n_no, n_yes]])
+            try:
+                or_res = stats.contingency.odds_ratio(table_2x2)
+                ci     = or_res.confidence_interval(confidence_level=0.95)
+                entry.update({
+                    "odds_ratio":  float(or_res.statistic),
+                    "or_ci_low":   float(ci.low),
+                    "or_ci_high":  float(ci.high),
+                })
+            except Exception:
+                entry.update({"odds_ratio": np.nan, "or_ci_low": np.nan, "or_ci_high": np.nan})
+        levels[cat] = entry
 
     result = {
-        "feature":   feature,
-        "levels":    levels,
-        "chi2_stat": float(chi2),
-        "p_value":   float(p_val),
-        "dof":       int(dof),
-        "cramers_v": cramers_v,
+        "feature":            feature,
+        "levels":             levels,
+        "chi2_stat":          float(chi2),
+        "p_value":            float(p_val),
+        "dof":                int(dof),
+        "cramers_v":          cramers_v,
+        "reference_category": str(ref_cat),
     }
 
     if feature in BINARY_FEATURES:
-        table_2x2 = (
-            contingency
-            .reindex(index=[0, 1], columns=[0, 1], fill_value=0)
-            .values
-        )
-        or_result = stats.contingency.odds_ratio(table_2x2)
-        ci = or_result.confidence_interval(confidence_level=0.95)
-        result["odds_ratio"]  = float(or_result.statistic)
+        # contingency.values works for both integer and string-indexed tables
+        or_res = stats.contingency.odds_ratio(contingency.values)
+        ci     = or_res.confidence_interval(confidence_level=0.95)
+        result["odds_ratio"]  = float(or_res.statistic)
         result["or_ci_low"]   = float(ci.low)
         result["or_ci_high"]  = float(ci.high)
 

@@ -5,11 +5,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from analysis_utils import (
-    CATEGORICAL, NUMERIC, ALL_FEATURES,
+    CATEGORICAL, NUMERIC, ALL_FEATURES, BINARY_FEATURES,
     DEFAULT_BIN_WIDTHS, BIN_WIDTH_OPTIONS,
     feature_stroke_stats, all_features_stats,
     apply_filters, encoded_for_correlation,
-    table1_stats,
+    table1_stats, phase2_summary,
 )
 
 st.set_page_config(page_title="Stroke Prediction Analysis", layout="wide")
@@ -38,6 +38,11 @@ def load_table1():
     return table1_stats(load_data())
 
 
+@st.cache_data
+def load_phase2_detail():
+    return phase2_summary(load_data())
+
+
 try:
     df = load_data()
 except FileNotFoundError:
@@ -47,7 +52,7 @@ except FileNotFoundError:
 p0 = df["stroke"].mean()
 overall_rate = p0 * 100
 
-tab0, tab_t1, tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab_t1, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏥 Cohort Overview",
     "📋 Table 1",
     "📊 Distributions",
@@ -55,6 +60,7 @@ tab0, tab_t1, tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔗 Joint Stroke Risk",
     "🔥 Correlation Matrix",
     "🧪 Hypothesis Testing",
+    "📊 Phase 2 — Group Comparison",
 ])
 
 
@@ -639,3 +645,234 @@ with tab5:
     detail_display.columns = ["Value", "N", "Strokes", "Rate (%)", "CI Lower (%)",
                                "CI Upper (%)", "Z-stat", "p-value", "Sig.", "Direction"]
     st.dataframe(detail_display.set_index("Value"), use_container_width=True)
+
+
+# ── Tab 6: Phase 2 — Group Comparison ────────────────────────────────────────
+PHASE2_CSV = "data/phase2_hypothesis_results.csv"
+
+with tab6:
+    st.header("Phase 2 — Group Comparison (Stroke vs. No Stroke)")
+
+    with st.expander("ℹ️ How this differs from the Hypothesis Testing tab"):
+        st.markdown(
+            "**Hypothesis Testing tab** asks: *Is this group's stroke rate different from the "
+            "overall population average?* It compares each subgroup (e.g. smokers) against the "
+            "whole dataset's stroke rate. This is useful for spotting which values stand out, "
+            "but it doesn't directly compare stroke patients to non-stroke patients.\n\n"
+            "**This tab** asks: *Do stroke patients and non-stroke patients look different on "
+            "this feature?* It puts the two groups head-to-head — 249 stroke patients vs. "
+            "4,861 non-stroke patients — and tests whether their distributions differ. "
+            "This is the standard approach in clinical research for identifying risk factors.\n\n"
+            "- **Continuous features** (age, glucose, BMI): Mann-Whitney U test — does not "
+            "assume the data is normally distributed, which matters here given the skewed "
+            "distributions. Effect size is Cohen's d.\n"
+            "- **Categorical features** (gender, work type, smoking status): Chi-square test — "
+            "checks whether the mix of categories differs between groups. Effect size is "
+            "Cramér's V (0 = no association, 1 = perfect association). Per-level **odds ratios** "
+            "are reported using **dummy coding**: each category is compared to a reference "
+            "category (the first alphabetically), so you can see which specific levels drive "
+            "the overall chi-square result.\n"
+            "- **Binary features** (hypertension, heart disease, ever married, residence type): "
+            "also report a single **odds ratio** — how many times more (or less) likely a "
+            "patient with that characteristic is to have had a stroke, compared to the "
+            "other value of that feature."
+        )
+
+    # ── Load results CSV ──────────────────────────────────────────────────────
+    try:
+        p2 = pd.read_csv(PHASE2_CSV)
+    except FileNotFoundError:
+        p2 = None
+        st.warning("Run `hypothesis_testing.py` to generate Phase 2 results.")
+
+    if p2 is not None:
+        # ── Helper: parse formatted p-value string to float ──────────────────
+        def _parse_p(s: str) -> float:
+            if isinstance(s, str) and s.strip() == "< 0.001":
+                return 0.0005
+            try:
+                return float(s)
+            except (ValueError, TypeError):
+                return np.nan
+
+        p2["_p_raw"] = p2["p-value"].apply(_parse_p)
+
+        # ── Metric cards ─────────────────────────────────────────────────────
+        n_total   = len(p2)
+        n_sig     = int((p2["_p_raw"] < 0.05).sum())
+        n_large   = int(p2["Effect Size"].str.contains("large", na=False).sum())
+        or_vals   = (
+            p2["Odds Ratio 95% CI"]
+            .dropna()
+            .loc[p2["Odds Ratio 95% CI"].astype(str).str.strip() != ""]
+            .apply(lambda s: float(s.split()[0]) if s else np.nan)
+            .dropna()
+        )
+        n_or_high = int((or_vals > 2.0).sum())
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Features tested",        n_total)
+        m2.metric("Significant (p < 0.05)", n_sig)
+        m3.metric("Large effect size",       n_large)
+        m4.metric("Odds ratio > 2.0",        n_or_high if n_or_high > 0 else "N/A")
+
+        st.divider()
+
+        # ── Results table ─────────────────────────────────────────────────────
+        SIG_COLORS = {"***": "#c0392b", "**": "#e67e22", "*": "#b8860b", "ns": "#888888"}
+
+        def _color_sig(val):
+            color = SIG_COLORS.get(str(val).strip(), "#888888")
+            return f"color: {color}; font-weight: bold"
+
+        display_cols = [c for c in p2.columns if c != "_p_raw"]
+        styled_p2 = p2[display_cols].style.map(_color_sig, subset=["Sig."])
+        st.dataframe(styled_p2, use_container_width=True, hide_index=True)
+
+        csv_bytes = p2[display_cols].to_csv(index=False).encode()
+        st.download_button(
+            label="⬇ Download Phase 2 results",
+            data=csv_bytes,
+            file_name="phase2_hypothesis_results.csv",
+            mime="text/csv",
+        )
+
+        # ── Interpretations expander ──────────────────────────────────────────
+        with st.expander("📝 Interpretations"):
+            p2_det = load_phase2_detail()
+
+            def _or_sentence(or_val, ci_lo, ci_hi, subj, ref_desc, p_raw):
+                sig_note = "" if p_raw < 0.05 else " (not statistically significant)"
+                direction = "higher" if or_val >= 1.0 else "lower"
+                return (
+                    f"{subj} had **{or_val:.2f}× {direction} odds** of stroke "
+                    f"compared to {ref_desc} "
+                    f"(OR = {or_val:.2f}, 95% CI {ci_lo:.2f}–{ci_hi:.2f}){sig_note}."
+                )
+
+            for feat in CATEGORICAL:
+                s       = p2_det[feat]
+                p_raw   = s["p_value"]
+                ref     = s["reference_category"]
+                levels  = s["levels"]
+                all_cats = sorted(levels.keys())
+
+                st.markdown(f"**{feat}**")
+
+                if feat in BINARY_FEATURES:
+                    # Single top-level sentence for the active (second) category vs reference
+                    active = all_cats[1]
+                    subj     = f"Patients with **{feat} = {active}**"
+                    ref_desc = f"those with **{feat} = {ref}**"
+                    st.markdown(
+                        "- " + _or_sentence(
+                            s["odds_ratio"], s["or_ci_low"], s["or_ci_high"],
+                            subj, ref_desc, p_raw,
+                        )
+                    )
+                else:
+                    if p_raw >= 0.05:
+                        st.markdown(
+                            f"- No significant difference in stroke outcome across "
+                            f"{feat} categories (p = {s['p_value']:.3f})."
+                        )
+                    else:
+                        for cat in all_cats:
+                            lvl = levels[cat]
+                            if lvl["is_reference"]:
+                                st.markdown(
+                                    f"- **{cat}** — reference category (OR = 1.00 by definition)."
+                                )
+                            else:
+                                or_val = lvl.get("odds_ratio", np.nan)
+                                if np.isnan(or_val):
+                                    st.markdown(f"- **{cat}** — OR could not be computed (likely zero-cell).")
+                                else:
+                                    subj     = f"**{cat}** patients"
+                                    ref_desc = f"**{ref}** patients"
+                                    st.markdown(
+                                        "- " + _or_sentence(
+                                            or_val, lvl["or_ci_low"], lvl["or_ci_high"],
+                                            subj, ref_desc, p_raw,
+                                        )
+                                    )
+
+        st.divider()
+
+        # ── Feature detail ────────────────────────────────────────────────────
+        st.subheader("Feature Detail")
+
+        detail_feat_p2 = st.selectbox(
+            "Select a feature", p2["Feature"].tolist(), key="p2_feat"
+        )
+        feat_row = p2[p2["Feature"] == detail_feat_p2].iloc[0]
+        p_fmt    = feat_row["p-value"]
+        sig_flag = feat_row["Sig."]
+
+        if detail_feat_p2 in NUMERIC:
+            fig_p2 = px.box(
+                df, x="stroke_label", y=detail_feat_p2,
+                color="stroke_label",
+                color_discrete_map=STROKE_COLOR,
+                labels={"stroke_label": "Outcome", detail_feat_p2: detail_feat_p2},
+                category_orders={"stroke_label": ["No Stroke", "Stroke"]},
+            )
+            fig_p2.update_layout(showlegend=False, xaxis_title="Outcome")
+            st.plotly_chart(fig_p2, use_container_width=True)
+            st.caption(
+                f"Mann-Whitney U test: p = {p_fmt} ({sig_flag})  |  "
+                f"Effect size: {feat_row['Effect Size']}"
+            )
+        else:
+            feat_stats_p2 = feature_stroke_stats(df, detail_feat_p2)
+            fig_p2 = px.bar(
+                feat_stats_p2, x="label", y="rate",
+                color="direction",
+                color_discrete_map={
+                    "Higher ▲": STROKE_COLOR["Stroke"],
+                    "Lower ▼":  STROKE_COLOR["No Stroke"],
+                    "—":        "#AAAAAA",
+                },
+                labels={"label": detail_feat_p2, "rate": "Stroke Rate"},
+                text=feat_stats_p2["rate"].apply(lambda r: f"{r * 100:.1f}%"),
+            )
+            fig_p2.update_traces(textposition="outside")
+            fig_p2.update_layout(
+                yaxis_tickformat=".0%",
+                yaxis_title="Stroke Rate",
+                showlegend=False,
+            )
+            st.plotly_chart(fig_p2, use_container_width=True)
+            st.caption(
+                f"Chi-square test: p = {p_fmt} ({sig_flag})  |  "
+                f"Effect size: {feat_row['Effect Size']}"
+                + (f"  |  OR: {feat_row['Odds Ratio 95% CI']}"
+                   if str(feat_row.get("Odds Ratio 95% CI", "")).strip() else "")
+            )
+
+            # Per-level OR table (dummy coding vs reference category)
+            p2_detail  = load_phase2_detail()
+            feat_s     = p2_detail[detail_feat_p2]
+            ref_cat    = feat_s["reference_category"]
+            or_rows = []
+            for cat, lvl in feat_s["levels"].items():
+                label = f"{cat} (ref)" if lvl["is_reference"] else str(cat)
+                if lvl["is_reference"]:
+                    or_str = "1.00 (reference)"
+                else:
+                    ov = lvl.get("odds_ratio", np.nan)
+                    or_str = (
+                        f"{ov:.2f} ({lvl['or_ci_low']:.2f}-{lvl['or_ci_high']:.2f})"
+                        if not np.isnan(ov) else "—"
+                    )
+                or_rows.append({
+                    "Category":         label,
+                    "No Stroke n (%)":  f"{lvl['no_stroke_n']} ({lvl['no_stroke_rate']:.1f}%)",
+                    "Stroke n (%)":     f"{lvl['stroke_n']} ({lvl['stroke_rate']:.1f}%)",
+                    "OR (95% CI)":      or_str,
+                })
+            st.dataframe(pd.DataFrame(or_rows), hide_index=True, use_container_width=True)
+            st.caption(
+                f"Odds ratios computed vs reference category '{ref_cat}' (dummy coding). "
+                "OR > 1 indicates higher odds of stroke relative to the reference."
+            )

@@ -129,10 +129,22 @@ def print_findings(summary: dict, results: pd.DataFrame) -> None:
                 f"Cramér's V={s['cramers_v']:.3f}"
             )
         else:
+            ref = s["reference_category"]
             print(
                 f"  {feat}: {sig} — distribution differs by stroke outcome, "
-                f"Cramér's V={s['cramers_v']:.3f}"
+                f"Cramér's V={s['cramers_v']:.3f} (reference: {ref})"
             )
+            for cat, lvl in s["levels"].items():
+                if lvl["is_reference"]:
+                    continue
+                or_val = lvl.get("odds_ratio", np.nan)
+                ci_lo  = lvl.get("or_ci_low", np.nan)
+                ci_hi  = lvl.get("or_ci_high", np.nan)
+                if not np.isnan(or_val):
+                    print(
+                        f"    {cat} vs {ref}: OR={or_val:.2f} "
+                        f"(95% CI {ci_lo:.2f}-{ci_hi:.2f})"
+                    )
 
     print()
     not_sig = results[results["_p_raw"] >= 0.05]["Feature"].tolist()
