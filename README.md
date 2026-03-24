@@ -38,6 +38,25 @@ Missing and unknown values are handled in `feature_engineering.py` using K-Neare
 - **BMI** — NaN values imputed based on similar patients
 - **Smoking status** — `"Unknown"` entries resolved to the most common status among nearest neighbors
 
+## Key Findings — Phase 2
+
+Group comparison tests (Mann-Whitney U and chi-square) were run comparing stroke vs. no-stroke patients across all 10 clinical features.
+
+| Feature | Result | Effect Size |
+|---------|--------|-------------|
+| age | Significantly higher in stroke patients (median 71.0 vs. 43.0 years, p < 0.001) | Cohen's d = 1.175 (large) |
+| avg_glucose_level | Significantly higher in stroke patients (median 105.2 vs. 91.5 mg/dL, p < 0.001) | Cohen's d = 0.618 (medium) |
+| heart_disease | Higher odds of stroke (OR = 4.70, 95% CI 3.26–6.69, p < 0.001) | Cramér's V = 0.133 (small) |
+| hypertension | Higher odds of stroke (OR = 3.70, 95% CI 2.70–5.02, p < 0.001) | Cramér's V = 0.126 (small) |
+| ever_married | Higher odds of stroke (OR = 4.18, 95% CI 2.82–6.42, p < 0.001) | Cramér's V = 0.107 (small) |
+| work_type | Distribution differs by stroke outcome (p < 0.001) | Cramér's V = 0.098 (negligible) |
+| bmi | Significantly higher in stroke patients (median 29.5 vs. 28.1 kg/m², p < 0.001) | Cohen's d = 0.185 (negligible) |
+| smoking_status | Distribution differs by stroke outcome (p < 0.001) | Cramér's V = 0.055 (negligible) |
+
+2 features did not reach statistical significance (p ≥ 0.05): `gender` and `Residence_type`.
+
+All associations are observational; no causal claims are made. See `data/phase2_interpretation.txt` for full manuscript-style interpretation.
+
 ## Interactive Dashboard
 
 The Streamlit dashboard (`dashboard.py`) provides eight analysis tabs:
