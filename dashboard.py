@@ -41,13 +41,69 @@ except FileNotFoundError:
 p0 = df["stroke"].mean()
 overall_rate = p0 * 100
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🏥 Cohort Overview",
     "📊 Distributions",
     "🎯 Individual Stroke Risk",
     "🔗 Joint Stroke Risk",
     "🔥 Correlation Matrix",
     "🧪 Hypothesis Testing",
 ])
+
+
+# ── Tab 0: Cohort Overview ────────────────────────────────────────────────────
+with tab0:
+    st.header("Cohort Overview")
+
+    n_total = len(df)
+    n_stroke = int(df["stroke"].sum())
+    n_no_stroke = n_total - n_stroke
+    prevalence = overall_rate
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Patients", f"{n_total:,}")
+    m2.metric("Stroke Cases", f"{n_stroke:,}")
+    m3.metric("Non-Stroke Cases", f"{n_no_stroke:,}")
+    m4.metric("Stroke Prevalence", f"{prevalence:.1f}%")
+
+    st.markdown(
+        f"**Note:** stroke cases represent only **{prevalence:.1f}%** of the cohort — "
+        "a severe class imbalance that affects model evaluation and will be addressed with SMOTE."
+    )
+
+    with st.expander("Data quality summary"):
+        try:
+            with open("data/data_quality_report.txt") as f:
+                report_text = f.read()
+            st.code(report_text, language=None)
+        except FileNotFoundError:
+            st.warning('Run `feature_engineering.py` to generate the data quality report.')
+
+    with st.expander("Outlier flags"):
+        outlier_cols = {
+            "age":               "age_outlier",
+            "avg_glucose_level": "glucose_outlier",
+            "bmi":               "bmi_outlier",
+        }
+        outlier_rows = []
+        for col, flag_col in outlier_cols.items():
+            q1 = df[col].quantile(0.25)
+            q3 = df[col].quantile(0.75)
+            iqr = q3 - q1
+            lower = q1 - 1.5 * iqr
+            upper = q3 + 1.5 * iqr
+            flagged = int(df[flag_col].sum())
+            outlier_rows.append({
+                "Variable": col,
+                "IQR Lower Bound": round(lower, 2),
+                "IQR Upper Bound": round(upper, 2),
+                "Flagged Count": flagged,
+                "Flagged %": round(flagged / n_total * 100, 1),
+            })
+        st.dataframe(
+            pd.DataFrame(outlier_rows).set_index("Variable"),
+            use_container_width=True,
+        )
 
 
 # ── Tab 1: Distributions ──────────────────────────────────────────────────────

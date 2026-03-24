@@ -24,7 +24,7 @@ KAGGLE_KEY=your_key
 Run scripts in order:
 
 1. **`retrieve_data.py`** — downloads dataset from Kaggle, saves to `data/stroke_data.csv`
-2. **`feature_engineering.py`** — KNN imputes missing BMI and Unknown smoking status, saves to `data/stroke_data_clean.csv`
+2. **`feature_engineering.py`** — KNN imputes missing BMI and Unknown smoking status, saves to `data/stroke_data_clean.csv` and `data/data_quality_report.txt`
 3. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
 
 ```bash
@@ -47,10 +47,11 @@ Known data quality issues (handled in `feature_engineering.py`):
 
 ## Dashboard (`dashboard.py` + `analysis_utils.py`)
 
-Five tabs, each with an in-app `ℹ️` help expander:
+Six tabs, each with an in-app `ℹ️` help expander:
 
 | Tab | Description |
 |-----|-------------|
+| 🏥 Cohort Overview | Summary metrics, data quality report, and IQR outlier flag table |
 | 📊 Distributions | Raw patient counts per feature value, optionally split by stroke outcome |
 | 🎯 Individual Stroke Risk | Stroke rate per value/bin with 95% AC confidence intervals and significance color coding |
 | 🔗 Joint Stroke Risk | Conditional stroke probability for a user-defined patient profile |
@@ -61,6 +62,8 @@ Five tabs, each with an in-app `ℹ️` help expander:
 
 - `analysis_utils.ENCODE_MAP` is the **single source of truth** for ordinal encodings; it is used for both the correlation matrix display and as the reference for what `feature_engineering.py` replicates manually during KNN imputation. Keep them in sync if categories change.
 - `dashboard.py` caches data with `@st.cache_data`. After re-running the pipeline scripts, clear the Streamlit cache (menu → Clear cache, or restart the server) to pick up fresh data.
+- `load_data()` adds a synthetic `stroke_label` column (`{0: "No Stroke", 1: "Stroke"}`) that is not in the CSV. Code that exposes raw rows to users must drop it explicitly (e.g. `filtered.drop(columns=["stroke_label"])`).
+- `CI_MIN_N = 30` (minimum group size to render CI bars) and the `hover_ci()` helper are defined in `dashboard.py`, not `analysis_utils.py`. `hover_ci` is defined inside the tab2 block but referenced in the tab5 forest plot — keep them in the same file if refactoring.
 
 ### Statistical methods (`analysis_utils.py`)
 
