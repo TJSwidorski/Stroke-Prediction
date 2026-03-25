@@ -73,6 +73,40 @@ def define_objective(trial, X_train, y_train, cv, class_weights):
     return scores.mean()
 
 
+# ── Threshold optimization ─────────────────────────────────────────────────────
+
+def _find_optimal_threshold(
+    y_train: np.ndarray,
+    train_prob: np.ndarray,
+    sensitivity_weight: float = 0.6,
+) -> float:
+    """Find the threshold maximizing weighted Youden's J statistic.
+
+    Objective: maximize (sensitivity_weight * sensitivity) +
+               ((1 - sensitivity_weight) * specificity)
+
+    This balances both classes while giving slight emphasis to sensitivity
+    (avoiding missed strokes), avoiding the degenerate case where a very
+    low threshold classifies everything as positive to maximize recall.
+
+    sensitivity_weight=0.6 means sensitivity is weighted 60%,
+    specificity 40%.
+    """
+    fpr, tpr, thresholds = roc_curve(y_train, train_prob)
+    specificity = 1.0 - fpr
+
+    weighted_j = (sensitivity_weight * tpr) + ((1 - sensitivity_weight) * specificity)
+    best_idx = int(np.argmax(weighted_j))
+    optimal_threshold = float(thresholds[best_idx])
+
+    print(
+        f"Optimal threshold: {optimal_threshold:.4f}  "
+        f"(sensitivity={tpr[best_idx]:.3f}, specificity={specificity[best_idx]:.3f}, "
+        f"weighted J={weighted_j[best_idx]:.3f})"
+    )
+    return optimal_threshold
+
+
 # ── Evaluation helpers ─────────────────────────────────────────────────────────
 
 def _evaluate_at_threshold(
@@ -169,21 +203,8 @@ def main():
     best_model.fit(X_train, y_train)
 
     # ── 4. Threshold optimization on training set ──────────────────────────────
-    train_prob = best_model.predict_proba(X_train)[:, 1]
-    fpr, tpr, thresholds = roc_curve(y_train, train_prob)
-
-    TARGET_SENSITIVITY = 0.85
-    candidates = [(t, s) for t, s in zip(thresholds, tpr) if s >= TARGET_SENSITIVITY]
-    if candidates:
-        # highest threshold that still achieves the target sensitivity
-        optimal_threshold = float(max(candidates, key=lambda x: x[0])[0])
-    else:
-        optimal_threshold = float(thresholds[np.argmax(tpr)])
-        print(
-            f"\nWARNING: No threshold achieves sensitivity >= {TARGET_SENSITIVITY:.0%}. "
-            f"Using threshold with highest sensitivity ({tpr.max():.4f}) instead."
-        )
-
+    train_prob        = best_model.predict_proba(X_train)[:, 1]
+    optimal_threshold = _find_optimal_threshold(y_train.values, train_prob)
     default_threshold = 0.5
     print(f"\nThresholds - default: {default_threshold}, optimal: {optimal_threshold:.4f}")
 
@@ -263,10 +284,13 @@ def main():
         f"At the default 0.5 threshold, test-set sensitivity was "
         f"{md['sensitivity']:.3f} with specificity {md['specificity']:.3f} "
         f"and AUC-ROC {md['roc_auc']:.3f}. "
-        f"Lowering the threshold to {optimal_threshold:.3f} to target >= 85% "
-        f"sensitivity raised recall to {mo['sensitivity']:.3f} at the cost of "
-        f"specificity ({mo['specificity']:.3f}) and precision ({mo['precision']:.3f}), "
-        f"reflecting the class imbalance inherent in a ~5% stroke prevalence dataset. "
+        f"The optimal threshold ({optimal_threshold:.3f}) was selected by maximizing a "
+        f"weighted Youden's J statistic (60% sensitivity, 40% specificity weight), "
+        f"reflecting the clinical priority of minimizing missed stroke cases while "
+        f"maintaining meaningful specificity. This raised recall to {mo['sensitivity']:.3f} "
+        f"at the cost of specificity ({mo['specificity']:.3f}) and precision "
+        f"({mo['precision']:.3f}), reflecting the class imbalance inherent in a "
+        f"~5% stroke prevalence dataset. "
         f"The strongest predictors by absolute coefficient were {top_str}. "
         + (
             f"L1 regularization zeroed out {len(zeroed)} feature(s) "

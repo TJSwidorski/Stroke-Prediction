@@ -100,14 +100,14 @@ Eight tabs, each with an in-app `ℹ️` help expander:
 - `split_data()` — stratified 80/20 split; `get_class_weights()` returns balanced weights to handle ~5% stroke prevalence.
 - `build_feature_matrix` casts the entire output frame to `float32` before returning. `pd.get_dummies` in pandas ≥ 2.0 produces `bool` columns for OHE indicators; sklearn accepts them silently but Keras rejects them with "Invalid dtype: object".
 
-`train_logistic.py` runs Bayesian hyperparameter search (100 Optuna trials, maximize CV AUC-ROC) over ElasticNet logistic regression (`penalty="elasticnet"`, solver `"saga"`). After finding best params it evaluates at two thresholds: default 0.5 and an optimal threshold targeting ≥ 85% sensitivity (highest threshold on the training ROC curve that still meets that target, maximizing specificity).
+`train_logistic.py` runs Bayesian hyperparameter search (100 Optuna trials, maximize CV AUC-ROC) over ElasticNet logistic regression (`penalty="elasticnet"`, solver `"saga"`). After finding best params it evaluates at two thresholds: default 0.5 and an optimal threshold selected by maximizing a weighted Youden's J statistic (60% sensitivity weight, 40% specificity weight) on the training ROC curve.
 
 `train_mlp.py` trains all four MLP configurations defined in `CONFIGS` at the top of the file. Key implementation notes:
 
 - `build_model(config, input_dim)` uses the Keras functional API. If `use_attention=True`, a `Dense(input_dim, activation="softmax")` layer named `"attention_weights"` is multiplied element-wise with the raw inputs via `Multiply()` before the hidden layers. This layer is extracted post-training to derive per-feature attention scores.
 - Each hidden layer block: `Dense` → optional `BatchNormalization` → `LeakyReLU(0.01)` or `ReLU` → optional `Dropout`.
 - Training uses `EarlyStopping(monitor="val_auc", patience=15)` and `ReduceLROnPlateau(monitor="val_auc", patience=7, factor=0.5)` with `validation_split=0.15` and `epochs=150` maximum.
-- Threshold optimization is identical to `train_logistic.py`: highest threshold on the training ROC that still achieves ≥ 85% sensitivity (maximizes specificity at the target recall floor).
+- Threshold optimization is identical to `train_logistic.py`: weighted Youden's J (60% sensitivity, 40% specificity) on the training ROC curve.
 - Attention weights (Config D) are extracted by building a sub-model from `model.input` → `model.get_layer("attention_weights").output`, predicting over all training samples, and averaging.
 - The four config names ("Shallow Wide", "Medium Dropout", "Deep Regularized", "Attention Weighted") are sanitized to snake_case for all output filenames.
 

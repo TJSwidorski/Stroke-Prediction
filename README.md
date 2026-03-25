@@ -84,7 +84,7 @@ Preprocessing (shared via `preprocessing.py`):
 
 The Attention Weighted config prepends a `softmax` Dense layer that learns per-feature importance weights, multiplied element-wise with the inputs. These weights are averaged across training samples and saved to `data/mlp_attention_weights.json`.
 
-All models are evaluated at two decision thresholds: default 0.5 and an optimal threshold targeting ≥ 85% sensitivity (highest threshold on the training ROC curve still meeting that target, maximizing specificity), reflecting the clinical priority of minimizing missed strokes.
+All models are evaluated at two decision thresholds: default 0.5 and an optimal threshold selected by maximizing a weighted Youden's J statistic (60% sensitivity weight, 40% specificity weight), reflecting the clinical priority of minimizing missed strokes while maintaining meaningful specificity.
 
 **SHAP feature importance** (`shap_analysis.py`) — runs after both model scripts and produces:
 - Per-model SHAP values and beeswarm/bar plots for the LR baseline and best MLP (by AUC-ROC)

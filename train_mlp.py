@@ -226,19 +226,33 @@ def _evaluate_at_threshold(
 def _find_optimal_threshold(
     y_train: np.ndarray,
     train_prob: np.ndarray,
-    target_sensitivity: float = 0.85,
+    sensitivity_weight: float = 0.6,
 ) -> float:
-    """Return the lowest threshold on training ROC achieving target sensitivity."""
+    """Find the threshold maximizing weighted Youden's J statistic.
+
+    Objective: maximize (sensitivity_weight * sensitivity) +
+               ((1 - sensitivity_weight) * specificity)
+
+    This balances both classes while giving slight emphasis to sensitivity
+    (avoiding missed strokes), avoiding the degenerate case where a very
+    low threshold classifies everything as positive to maximize recall.
+
+    sensitivity_weight=0.6 means sensitivity is weighted 60%,
+    specificity 40%.
+    """
     fpr, tpr, thresholds = roc_curve(y_train, train_prob)
-    candidates = [(t, s) for t, s in zip(thresholds, tpr) if s >= target_sensitivity]
-    if candidates:
-        return float(max(candidates, key=lambda x: x[0])[0])
-    optimal = float(thresholds[np.argmax(tpr)])
+    specificity = 1.0 - fpr
+
+    weighted_j = (sensitivity_weight * tpr) + ((1 - sensitivity_weight) * specificity)
+    best_idx = int(np.argmax(weighted_j))
+    optimal_threshold = float(thresholds[best_idx])
+
     print(
-        f"\nWARNING: No threshold achieves sensitivity >= {target_sensitivity:.0%}. "
-        f"Using threshold with highest sensitivity ({tpr.max():.4f}) instead."
+        f"Optimal threshold: {optimal_threshold:.4f}  "
+        f"(sensitivity={tpr[best_idx]:.3f}, specificity={specificity[best_idx]:.3f}, "
+        f"weighted J={weighted_j[best_idx]:.3f})"
     )
-    return optimal
+    return optimal_threshold
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
