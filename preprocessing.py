@@ -101,6 +101,10 @@ def build_feature_matrix(
         json.dump(feature_columns, fh, indent=2)
     print(f"Feature columns ({len(feature_columns)}) saved to {COLUMNS_PATH}")
 
+    # Cast to float32 — pd.get_dummies produces bool columns in pandas ≥ 2.0,
+    # which sklearn handles silently but Keras rejects with "Invalid dtype: object".
+    working = working.astype(np.float32)
+
     y = df["stroke"].astype(int)
     return working, y
 

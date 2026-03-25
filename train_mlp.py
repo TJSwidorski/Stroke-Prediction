@@ -232,7 +232,7 @@ def _find_optimal_threshold(
     fpr, tpr, thresholds = roc_curve(y_train, train_prob)
     candidates = [(t, s) for t, s in zip(thresholds, tpr) if s >= target_sensitivity]
     if candidates:
-        return float(min(candidates, key=lambda x: x[0])[0])
+        return float(max(candidates, key=lambda x: x[0])[0])
     optimal = float(thresholds[np.argmax(tpr)])
     print(
         f"\nWARNING: No threshold achieves sensitivity >= {target_sensitivity:.0%}. "
@@ -318,7 +318,7 @@ def main():
                 print(f"  {feat}: {w:.4f}")
 
         # Save model
-        model_path = f"data/mlp_{safe}_model"
+        model_path = f"data/mlp_{safe}_model.keras"
         model.save(model_path)
         print(f"\nModel saved to {model_path}")
 

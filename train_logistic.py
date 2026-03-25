@@ -175,8 +175,8 @@ def main():
     TARGET_SENSITIVITY = 0.85
     candidates = [(t, s) for t, s in zip(thresholds, tpr) if s >= TARGET_SENSITIVITY]
     if candidates:
-        # lowest threshold that achieves the target sensitivity
-        optimal_threshold = float(min(candidates, key=lambda x: x[0])[0])
+        # highest threshold that still achieves the target sensitivity
+        optimal_threshold = float(max(candidates, key=lambda x: x[0])[0])
     else:
         optimal_threshold = float(thresholds[np.argmax(tpr)])
         print(
