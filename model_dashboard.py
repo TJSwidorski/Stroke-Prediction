@@ -91,10 +91,10 @@ def _metrics_row(name: str, results: dict, threshold_key: str) -> dict:
 
 
 def _style_best(df: pd.DataFrame, cols: list):
-    """Highlight maximum value in each metric column with green bold."""
+    """Color the maximum value in each metric column green."""
     def _hl(s):
         return [
-            "background-color: #d4edda; font-weight: bold" if v == s.max() else ""
+            "color: #28a745; font-weight: bold" if v == s.max() else ""
             for v in s
         ]
     return df.style.apply(_hl, subset=cols).format(
@@ -298,9 +298,9 @@ with tab2:
             color  = CONFIG_COLORS.get(name, "#666")
             epochs = list(range(1, len(h["loss"]) + 1))
 
-            # Determine key names (keras may suffix with _1 etc.)
-            auc_key     = next((k for k in h if k == "auc" or k.startswith("auc")), None)
-            val_auc_key = next((k for k in h if k == "val_auc" or k.startswith("val_auc")), None)
+            # Determine key names — Keras may use "auc", "AUC", "auc_1", etc.
+            auc_key     = next((k for k in h if "auc" in k.lower() and not k.lower().startswith("val")), None)
+            val_auc_key = next((k for k in h if "auc" in k.lower() and k.lower().startswith("val")), None)
 
             if auc_key:
                 fig_auc.add_trace(go.Scatter(
@@ -346,8 +346,8 @@ with tab2:
         color = CONFIG_COLORS.get(sel_name, "#1f77b4")
         epochs = list(range(1, len(h["loss"]) + 1))
 
-        auc_key     = next((k for k in h if k == "auc"     or k.startswith("auc")),     "auc")
-        val_auc_key = next((k for k in h if k == "val_auc" or k.startswith("val_auc")), "val_auc")
+        auc_key     = next((k for k in h if "auc" in k.lower() and not k.lower().startswith("val")), "auc")
+        val_auc_key = next((k for k in h if "auc" in k.lower() and k.lower().startswith("val")), "val_auc")
 
         best_ep = int(np.argmax(h.get(val_auc_key, [0]))) + 1
 
@@ -638,8 +638,8 @@ with tab4:
         else:
             color  = CONFIG_COLORS.get(sel_cfg, "#1f77b4")
             epochs = list(range(1, len(hist_data["loss"]) + 1))
-            auc_key     = next((k for k in hist_data if k == "auc"     or k.startswith("auc")),     "auc")
-            val_auc_key = next((k for k in hist_data if k == "val_auc" or k.startswith("val_auc")), "val_auc")
+            auc_key     = next((k for k in hist_data if "auc" in k.lower() and not k.lower().startswith("val")), "auc")
+            val_auc_key = next((k for k in hist_data if "auc" in k.lower() and k.lower().startswith("val")), "val_auc")
             best_ep = int(np.argmax(hist_data.get(val_auc_key, [0]))) + 1
 
             fig4 = make_subplots(rows=2, cols=2, subplot_titles=[
