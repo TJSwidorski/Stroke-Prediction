@@ -78,6 +78,30 @@ Feature selection is dynamic: `preprocessing.py` reads `data/phase2_hypothesis_r
 | Deep Regularized | [128, 64, 32] | Combined dropout + L2 regularization enables a deeper network |
 | Attention Weighted | [64, 32] | Learned per-feature input weighting improves discrimination and interpretability |
 
+### Model Performance Results
+
+At the optimal threshold (weighted Youden's J, 60% sensitivity / 40% specificity):
+
+| Model | AUC-ROC | Sensitivity | Specificity | F1 | Optimal Threshold |
+|-------|---------|-------------|-------------|-----|-------------------|
+| **Logistic Regression** | **0.841** | **0.840** | 0.648 | 0.194 | 0.420 |
+| Shallow Wide | 0.784 | 0.620 | **0.805** | 0.229 | 0.500 |
+| Medium Dropout | 0.802 | 0.680 | 0.803 | **0.246** | 0.581 |
+| Deep Regularized | 0.792 | 0.640 | 0.793 | 0.226 | 0.540 |
+| Attention Weighted | 0.771 | 0.620 | 0.784 | 0.213 | 0.531 |
+
+At the default 0.5 threshold:
+
+| Model | AUC-ROC | Sensitivity | Specificity | F1 |
+|-------|---------|-------------|-------------|-----|
+| **Logistic Regression** | **0.841** | **0.820** | 0.731 | **0.232** |
+| Shallow Wide | 0.784 | 0.620 | **0.805** | 0.229 |
+| Medium Dropout | 0.802 | 0.720 | 0.745 | 0.216 |
+| Deep Regularized | 0.792 | 0.660 | 0.763 | 0.211 |
+| Attention Weighted | 0.771 | 0.620 | 0.758 | 0.196 |
+
+**Key findings.** Logistic regression outperforms all four MLP configurations (AUC-ROC 0.841 vs. 0.771–0.802), suggesting the signal in these 8 features is largely linear after preprocessing. The optimal threshold raises sensitivity substantially for LR (0.82 → 0.84) at the cost of specificity, consistent with the clinical priority of catching missed strokes. Among the MLPs, Medium Dropout achieved the best AUC-ROC (0.802) and F1 (0.246), while the Attention Weighted config underperformed despite its added complexity. SHAP analysis identifies `age` as the dominant predictor (mean normalized importance 1.000), followed distantly by `bmi` (0.197) and `avg_glucose_level` (0.177) — a ranking consistent across LR coefficients, LR SHAP, MLP SHAP, and MLP attention weights.
+
 All models are evaluated at default (0.5) and optimal threshold. The optimal threshold maximizes a weighted Youden's J statistic (60% sensitivity, 40% specificity), reflecting the clinical priority of catching missed strokes while maintaining meaningful specificity.
 
 **SHAP feature importance** (`shap_analysis.py`) — produces beeswarm/bar plots for LR and the best MLP, plus `data/feature_importance_comparison.csv`: a normalized [0, 1] ranking across LR coefficients, LR SHAP, MLP SHAP, and MLP attention weights.
