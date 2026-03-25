@@ -91,42 +91,101 @@ Eight tabs, each with an in-app `ℹ️` help expander:
 - `BINARY_FEATURES = ["hypertension", "heart_disease", "ever_married", "Residence_type"]` — gates top-level OR computation. `ever_married` ("No"/"Yes") and `Residence_type` ("Rural"/"Urban") are string-valued but treated as binary.
 - `REFERENCE_CATEGORIES = {"work_type": "Private", "smoking_status": "never smoked"}` — overrides the default first-sorted reference for dummy-coded per-level ORs. Add entries here to change any feature's reference without touching the function logic.
 
-## Modeling (`preprocessing.py` + `train_logistic.py`)
+## Phase 3 — Predictive Modeling
 
-`preprocessing.py` is a shared library imported by all model training scripts — it contains no training logic itself. Key functions:
+### Pipeline execution order
 
-- `load_significant_features()` — reads `data/phase2_hypothesis_results.csv` and returns features where `Sig. != 'ns'`; this is what makes the model pipeline depend on hypothesis testing running first.
-- `build_feature_matrix(df, features)` — applies binary mapping (`ever_married`, `Residence_type`), one-hot encodes `work_type`/`smoking_status`, fits+saves a `StandardScaler` on the three numeric features, and writes `data/scaler.pkl` and `data/feature_columns.json` for reuse by inference scripts.
-- `split_data()` — stratified 80/20 split; `get_class_weights()` returns balanced weights to handle ~5% stroke prevalence.
-- `build_feature_matrix` casts the entire output frame to `float32` before returning. `pd.get_dummies` in pandas ≥ 2.0 produces `bool` columns for OHE indicators; sklearn accepts them silently but Keras rejects them with "Invalid dtype: object".
+```
+preprocessing.py      (shared library — no standalone execution needed)
+    ↓ imported by
+train_logistic.py  →  train_mlp.py  →  shap_analysis.py  →  model_dashboard.py
+```
 
-`train_logistic.py` runs Bayesian hyperparameter search (100 Optuna trials, maximize CV AUC-ROC) over ElasticNet logistic regression (`penalty="elasticnet"`, solver `"saga"`). After finding best params it evaluates at two thresholds: default 0.5 and an optimal threshold selected by maximizing a weighted Youden's J statistic (60% sensitivity weight, 40% specificity weight) on the training ROC curve.
+`hypothesis_testing.py` must run before any training script because `load_significant_features()` reads `data/phase2_hypothesis_results.csv`. All three training/analysis scripts import `preprocessing.py`.
 
-`train_mlp.py` trains all four MLP configurations defined in `CONFIGS` at the top of the file. Key implementation notes:
+### Data files produced
+
+| File | Produced by | Contents |
+|------|-------------|----------|
+| `data/scaler.pkl` | `preprocessing.py` (via training scripts) | Fitted `StandardScaler` for numeric features |
+| `data/feature_columns.json` | `preprocessing.py` | Ordered column list after OHE, used by inference scripts |
+| `data/lr_model.pkl` | `train_logistic.py` | Fitted `LogisticRegression` (ElasticNet) |
+| `data/lr_results.json` | `train_logistic.py` | Metrics at both thresholds, best hyperparams, coefficients |
+| `data/lr_coefficients.csv` | `train_logistic.py` | Feature coefficients, ORs, sorted by `\|coef\|` desc |
+| `data/optuna_study.pkl` | `train_logistic.py` | Full Optuna study object (trial history, param distributions) |
+| `data/mlp_{name}_model.keras` | `train_mlp.py` | Keras SavedModel (4 files, one per config) |
+| `data/mlp_{name}_history.json` | `train_mlp.py` | Per-epoch loss/AUC for train and val (4 files) |
+| `data/mlp_{name}_results.json` | `train_mlp.py` | Metrics at both thresholds + config spec (4 files) |
+| `data/mlp_comparison.csv` | `train_mlp.py` | One row per config, all metrics at optimal threshold |
+| `data/mlp_attention_weights.json` | `train_mlp.py` | Avg softmax attention weights from Config D, sorted desc |
+| `data/shap_lr_values.npy` | `shap_analysis.py` | Raw SHAP array (n_test × n_features) for LR |
+| `data/shap_lr_feature_importance.csv` | `shap_analysis.py` | `feature`, `mean_abs_shap`, sorted desc |
+| `data/shap_lr_summary.png` / `shap_lr_bar.png` | `shap_analysis.py` | SHAP beeswarm and bar plots |
+| `data/shap_mlp_values.npy` | `shap_analysis.py` | Raw SHAP array for best MLP config |
+| `data/shap_mlp_feature_importance.csv` | `shap_analysis.py` | `feature`, `mean_abs_shap`, sorted desc |
+| `data/shap_mlp_summary.png` / `shap_mlp_bar.png` | `shap_analysis.py` | SHAP beeswarm and bar plots |
+| `data/feature_importance_comparison.csv` | `shap_analysis.py` | LR coef, LR SHAP, MLP SHAP, attention — all normalized [0, 1] |
+
+### Feature selection
+
+`preprocessing.py:load_significant_features()` reads `data/phase2_hypothesis_results.csv` and returns all features where `Sig. != 'ns'`. The selected set is determined at runtime — if Phase 2 results change (different significance threshold or dataset), modeling automatically adapts. Currently 8 features: `age`, `avg_glucose_level`, `bmi`, `hypertension`, `heart_disease`, `ever_married`, `work_type`, `smoking_status`.
+
+### Class imbalance strategy
+
+Stroke prevalence is ~4.9% (250 cases out of 5,110). We use **balanced class weights** (`sklearn.utils.class_weight.compute_class_weight`), producing a ~1:19.5 stroke:no-stroke weight ratio. SMOTE was not used: it generates synthetic samples by interpolating between existing minority-class patients, which risks producing clinically unrealistic feature combinations (e.g., impossible age/BMI/glucose combinations). Class weighting achieves the same gradient-level effect during training without altering the data distribution, and the test set remains a true held-out sample.
+
+### MLP configuration hypotheses
+
+| Config | Architecture | Hypothesis |
+|--------|-------------|------------|
+| Shallow Wide | [128] | A single wide layer is sufficient — the problem is near-linearly separable after feature engineering |
+| Medium Dropout | [64, 32] | Moderate depth with dropout improves generalization over a shallow network on this small dataset |
+| Deep Regularized | [128, 64, 32] | Combined dropout + L2 allows a deeper network to learn without memorizing 4,088 training samples |
+| Attention Weighted | [64, 32] | A learned per-feature input mask improves both discrimination and interpretability |
+
+### Threshold optimization
+
+Both training scripts use `_find_optimal_threshold()`: maximize `0.6 × sensitivity + 0.4 × specificity` (weighted Youden's J) on the training ROC curve. This always finds a non-degenerate threshold with a deliberate clinical tilt toward recall (minimizing missed strokes) while preserving meaningful specificity.
+
+### Running the model dashboard
+
+```bash
+streamlit run model_dashboard.py   # Phase 3 results — runs independently of dashboard.py
+```
+
+The sidebar shows ✅/❌ status for every expected output file and prints the command needed to generate any missing file. All six tabs degrade gracefully if pipeline scripts have not yet been run (guards use `if data is not None:`, never `st.stop()` inside tab blocks).
+
+### Implementation notes (`preprocessing.py`)
+
+- `build_feature_matrix(df, features)` — binary maps `ever_married`/`Residence_type`, OHE `work_type`/`smoking_status`, fits+saves `StandardScaler` on numeric features, casts entire frame to `float32`. The cast is required: `pd.get_dummies` in pandas ≥ 2.0 produces `bool` OHE columns that sklearn accepts silently but Keras rejects with "Invalid dtype: object".
+
+### Implementation notes (`train_logistic.py`)
+
+- Bayesian hyperparameter search: 100 Optuna trials, TPE sampler, maximize 5-fold CV AUC-ROC over `C` (log-uniform 0.001–100) and `l1_ratio` (0–1).
+- `_evaluate_at_threshold` computes accuracy, sensitivity, specificity, precision, NPV, F1, AUC-ROC and prints a confusion matrix summary.
+
+### Implementation notes (`train_mlp.py`)
 
 - `build_model(config, input_dim)` uses the Keras functional API. If `use_attention=True`, a `Dense(input_dim, activation="softmax")` layer named `"attention_weights"` is multiplied element-wise with the raw inputs via `Multiply()` before the hidden layers. This layer is extracted post-training to derive per-feature attention scores.
 - Each hidden layer block: `Dense` → optional `BatchNormalization` → `LeakyReLU(0.01)` or `ReLU` → optional `Dropout`.
-- Training uses `EarlyStopping(monitor="val_auc", patience=15)` and `ReduceLROnPlateau(monitor="val_auc", patience=7, factor=0.5)` with `validation_split=0.15` and `epochs=150` maximum.
-- Threshold optimization is identical to `train_logistic.py`: weighted Youden's J (60% sensitivity, 40% specificity) on the training ROC curve.
-- Attention weights (Config D) are extracted by building a sub-model from `model.input` → `model.get_layer("attention_weights").output`, predicting over all training samples, and averaging.
-- The four config names ("Shallow Wide", "Medium Dropout", "Deep Regularized", "Attention Weighted") are sanitized to snake_case for all output filenames.
+- Training uses `EarlyStopping(monitor="val_auc", patience=15)` and `ReduceLROnPlateau(monitor="val_auc", patience=7, factor=0.5)` with `validation_split=0.15` and `epochs=150` maximum. Keras 3 writes the AUC history key as `"AUC"` (uppercase); all dashboard AUC key lookups use `"auc" in k.lower()`.
+- Config names are sanitized to snake_case for all output filenames (`"Attention Weighted"` → `attention_weighted`).
 
-`model_dashboard.py` is a separate Streamlit app (`streamlit run model_dashboard.py`) reporting Phase 3 results. Key implementation notes:
+### Implementation notes (`shap_analysis.py`)
 
-- **Sidebar file status**: iterates `EXPECTED_FILES` (list of `(label, path, command)` tuples) and shows ✅/❌ per file with the generating command on first appearance of each command. Does not repeat the same command block for every missing file.
-- **Tab 1 — Model Overview**: loads `lr_results.json` and all `mlp_{safe}_results.json` files. Builds two DataFrames (default and optimal threshold) and applies `_style_best()` which highlights the max per metric column via `df.style.apply()`. Best-model metric cards sit above the tables. The threshold explanation paragraph is built programmatically from loaded data.
-- **Tab 2 — Training Curves**: resolves AUC key names dynamically (`next((k for k in h if k == "auc" or k.startswith("auc")), "auc")`) to handle Keras metric naming. Best epoch = `argmax(val_auc)` (0-indexed +1). `add_vline` marks it on all subplots.
-- **Tab 3 — LR Detail**: loads `optuna_study.pkl` via `joblib`; uses `optuna.importance.get_param_importances(study)` wrapped in try/except. Coefficient bars colored red (>0) / blue (<0) / gray (=0). OR plot excludes zeroed features and uses `xaxis_type="log"`. No CI error bars — caption explains why (ElasticNet bias).
-- **Tab 4 — NN Detail**: `_count_params(config, input_dim)` computes total trainable params from the config dict + `data/feature_columns.json` (input_dim). Attention weights section is gated on `cfg.get("use_attention")`.
-- **Tab 5 — SHAP**: `st.image` takes file paths directly. Gradient styling uses `df.style.background_gradient(subset=num_cols, cmap="YlOrRd", axis=0)`. Feature selector shows the selected row's normalized scores as metric cards.
-- Do not use `st.stop()` inside tab blocks — it halts the entire app. Use `if data is not None:` guards instead.
-
-`shap_analysis.py` generates SHAP values for the logistic regression and the best MLP (highest AUC-ROC in `mlp_comparison.csv`). Key implementation notes:
-
-- **LR**: `shap.LinearExplainer(model, X_train)` — analytical SHAP for linear models; background is the full training set.
+- **LR**: `shap.LinearExplainer(model, X_train)` — analytical SHAP; background is the full training set.
 - **MLP**: tries `shap.DeepExplainer(model, background_100)` first; catches any exception and falls back to `shap.KernelExplainer` with the same 100-sample background and `nsamples=100`. `_to_2d()` normalizes all SHAP output forms (list-wrapped, Explanation object, 3D tensor) to a `(n_samples, n_features)` float32 array.
-- **Section 3 comparison**: merges `lr_coefficients.csv` (`abs_coef`), both SHAP importance CSVs, and `mlp_attention_weights.json` onto the canonical feature list; min-max normalizes each column to [0, 1] so rankings are directly comparable. Features absent from attention weights (non-attention configs) get NaN.
-- Plots use `matplotlib.use("Agg")` (set before pyplot import) so they render without a display on Windows.
+- **Comparison table**: merges `lr_coefficients.csv` (`abs_coef`), both SHAP CSVs, and `mlp_attention_weights.json` onto the canonical feature list; min-max normalizes each column to [0, 1]. Features absent from attention weights get NaN.
+- Uses `matplotlib.use("Agg")` before pyplot import so plots render without a display on Windows.
+
+### Implementation notes (`model_dashboard.py`)
+
+- **Sidebar**: iterates `EXPECTED_FILES` (list of `(label, path, command)` tuples); prints each `command` block only on first appearance.
+- **Tab 1**: `_style_best()` applies green text (`color: #28a745`) to the max value in each metric column via `df.style.apply()`. Threshold paragraph is built programmatically from loaded JSON data.
+- **Tab 2**: AUC key resolved via `next((k for k in h if "auc" in k.lower() and not k.lower().startswith("val")), ...)`. Best epoch = `argmax(val_auc)` (0-indexed +1); marked with `add_vline`.
+- **Tab 3**: `optuna_study.pkl` loaded via `joblib`; `optuna.importance.get_param_importances` wrapped in try/except. OR plot excludes zeroed features, log x-axis; no CI bars (ElasticNet regularization biases standard errors).
+- **Tab 4**: `_count_params(config, input_dim)` computes total trainable params from the config dict + `data/feature_columns.json`. Attention section gated on `cfg.get("use_attention")`.
+- **Tab 5**: `st.image` takes file paths directly. Gradient styling: `df.style.background_gradient(subset=num_cols, cmap="YlOrRd", axis=0)`.
 
 ## `hypothesis_testing.py`
 

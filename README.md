@@ -63,32 +63,50 @@ All associations are observational; no causal claims are made. See `data/phase2_
 
 ## Phase 3 — Predictive Modeling
 
-Models are trained on the 8 statistically significant features identified in Phase 2 (`age`, `avg_glucose_level`, `heart_disease`, `hypertension`, `ever_married`, `bmi`, `work_type`, `smoking_status`). Feature selection is driven by `data/phase2_hypothesis_results.csv`, so `hypothesis_testing.py` must run first.
+Feature selection is dynamic: `preprocessing.py` reads `data/phase2_hypothesis_results.csv` at runtime and trains only on features where Phase 2 returned a significant result (`Sig. != 'ns'`). Currently 8 features: `age`, `avg_glucose_level`, `heart_disease`, `hypertension`, `ever_married`, `bmi`, `work_type`, `smoking_status`.
 
-Preprocessing (shared via `preprocessing.py`):
-- Binary string features (`ever_married`, `Residence_type`) mapped to 0/1
-- Multi-level categoricals (`work_type`, `smoking_status`) one-hot encoded (no reference drop)
-- Numeric features (`age`, `bmi`, `avg_glucose_level`) standardized; fitted scaler saved to `data/scaler.pkl`
-- Stratified 80/20 train/test split; balanced class weights applied during training to address ~5% stroke prevalence
+**Class imbalance** (~4.9% stroke prevalence) is handled with balanced class weights (ratio ≈ 1:19.5). SMOTE was not used — it risks generating clinically unrealistic feature combinations, while class weighting achieves the same gradient-level effect without altering the data distribution.
 
-**Logistic regression baseline** (`train_logistic.py`) — ElasticNet regularization (`penalty="elasticnet"`, solver `"saga"`), hyperparameters tuned via 100-trial Optuna Bayesian search maximizing 5-fold CV AUC-ROC.
+**Logistic regression baseline** (`train_logistic.py`) — ElasticNet regularization, hyperparameters tuned via 100-trial Optuna Bayesian search maximizing 5-fold CV AUC-ROC.
 
-**MLP configurations** (`train_mlp.py`) — four fixed architectures trained with early stopping (patience 15, monitor `val_auc`) and learning rate reduction on plateau:
+**MLP configurations** (`train_mlp.py`) — four architectures, each testing a distinct hypothesis:
 
-| Config | Architecture | Regularization |
-|--------|-------------|----------------|
-| Shallow Wide | [128] | None |
-| Medium Dropout | [64, 32] | Dropout 0.3 |
-| Deep Regularized | [128, 64, 32] | Dropout 0.3 + L2 0.001 |
-| Attention Weighted | [64, 32] | Dropout 0.2 + input attention |
+| Config | Architecture | Hypothesis |
+|--------|-------------|------------|
+| Shallow Wide | [128] | Near-linear separability is sufficient after feature engineering |
+| Medium Dropout | [64, 32] | Dropout improves generalization over a shallow network |
+| Deep Regularized | [128, 64, 32] | Combined dropout + L2 regularization enables a deeper network |
+| Attention Weighted | [64, 32] | Learned per-feature input weighting improves discrimination and interpretability |
 
-The Attention Weighted config prepends a `softmax` Dense layer that learns per-feature importance weights, multiplied element-wise with the inputs. These weights are averaged across training samples and saved to `data/mlp_attention_weights.json`.
+All models are evaluated at default (0.5) and optimal threshold. The optimal threshold maximizes a weighted Youden's J statistic (60% sensitivity, 40% specificity), reflecting the clinical priority of catching missed strokes while maintaining meaningful specificity.
 
-All models are evaluated at two decision thresholds: default 0.5 and an optimal threshold selected by maximizing a weighted Youden's J statistic (60% sensitivity weight, 40% specificity weight), reflecting the clinical priority of minimizing missed strokes while maintaining meaningful specificity.
+**SHAP feature importance** (`shap_analysis.py`) — produces beeswarm/bar plots for LR and the best MLP, plus `data/feature_importance_comparison.csv`: a normalized [0, 1] ranking across LR coefficients, LR SHAP, MLP SHAP, and MLP attention weights.
 
-**SHAP feature importance** (`shap_analysis.py`) — runs after both model scripts and produces:
-- Per-model SHAP values and beeswarm/bar plots for the LR baseline and best MLP (by AUC-ROC)
-- `data/feature_importance_comparison.csv` — normalized [0, 1] ranking across LR coefficients, LR SHAP, MLP SHAP, and MLP attention weights, enabling direct comparison of which features drive stroke risk across all methods
+### Running the model dashboard
+
+```bash
+streamlit run model_dashboard.py
+```
+
+Runs independently from `dashboard.py`. A sidebar shows ✅/❌ status for every expected pipeline output and displays the command needed to generate any missing file.
+
+## Project Architecture
+
+```
+Stroke-Prediction/
+├── retrieve_data.py         # Phase 1 — downloads dataset from Kaggle
+├── feature_engineering.py  # Phase 1 — KNN imputation, outlier flags
+├── analysis_utils.py        # Phase 2 — statistical analysis library (CI, z-test, Mann-Whitney, chi-square)
+├── hypothesis_testing.py    # Phase 2 — group comparison analysis, writes results CSV
+├── preprocessing.py         # Phase 3 — shared feature engineering for all model training scripts
+├── train_logistic.py        # Phase 3 — ElasticNet logistic regression with Optuna tuning
+├── train_mlp.py             # Phase 3 — four MLP configurations (Keras)
+├── shap_analysis.py         # Phase 3 — SHAP values and feature importance comparison
+├── dashboard.py             # Dashboard — Phase 1/2 interactive analysis (8 tabs)
+└── model_dashboard.py       # Dashboard — Phase 3 model results (6 tabs)
+```
+
+All pipeline outputs go to `data/` (gitignored). Scripts must be run in the order shown in [Running the Pipeline](#running-the-pipeline).
 
 ## Interactive Dashboards
 
