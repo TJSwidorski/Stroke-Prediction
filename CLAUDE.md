@@ -10,7 +10,7 @@ This is a clinical medical research project that applies machine learning to the
 
 Install dependencies:
 ```bash
-pip install kagglehub[pandas-datasets] python-dotenv scikit-learn pandas numpy scipy streamlit plotly
+pip install kagglehub[pandas-datasets] python-dotenv scikit-learn pandas numpy scipy streamlit plotly optuna joblib tensorflow
 ```
 
 Kaggle credentials go in a `.env` file (excluded from git):
@@ -26,12 +26,16 @@ Run scripts in order:
 1. **`retrieve_data.py`** — downloads dataset from Kaggle, saves to `data/stroke_data.csv`
 2. **`feature_engineering.py`** — KNN imputes missing BMI and Unknown smoking status, saves to `data/stroke_data_clean.csv` and `data/data_quality_report.txt`
 3. **`hypothesis_testing.py`** — Phase 2 group comparison analysis, prints results to console, saves to `data/phase2_hypothesis_results.csv`, and writes a manuscript-style interpretation to `data/phase2_interpretation.txt`
-4. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
+4. **`train_logistic.py`** — trains ElasticNet logistic regression with Optuna hyperparameter search; outputs `data/lr_model.pkl`, `data/lr_results.json`, `data/lr_coefficients.csv`, `data/optuna_study.pkl`
+5. **`train_mlp.py`** — trains four MLP configurations (see below); outputs per-config model directories, history/results JSON, `data/mlp_attention_weights.json`, and `data/mlp_comparison.csv`
+6. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
 
 ```bash
 python retrieve_data.py
 python feature_engineering.py
 python hypothesis_testing.py
+python train_logistic.py
+python train_mlp.py
 streamlit run dashboard.py
 ```
 
@@ -82,6 +86,25 @@ Eight tabs, each with an in-app `ℹ️` help expander:
   - `phase2_summary(df)` — runs both over all features; returns a dict keyed by feature name.
 - `BINARY_FEATURES = ["hypertension", "heart_disease", "ever_married", "Residence_type"]` — gates top-level OR computation. `ever_married` ("No"/"Yes") and `Residence_type` ("Rural"/"Urban") are string-valued but treated as binary.
 - `REFERENCE_CATEGORIES = {"work_type": "Private", "smoking_status": "never smoked"}` — overrides the default first-sorted reference for dummy-coded per-level ORs. Add entries here to change any feature's reference without touching the function logic.
+
+## Modeling (`preprocessing.py` + `train_logistic.py`)
+
+`preprocessing.py` is a shared library imported by all model training scripts — it contains no training logic itself. Key functions:
+
+- `load_significant_features()` — reads `data/phase2_hypothesis_results.csv` and returns features where `Sig. != 'ns'`; this is what makes the model pipeline depend on hypothesis testing running first.
+- `build_feature_matrix(df, features)` — applies binary mapping (`ever_married`, `Residence_type`), one-hot encodes `work_type`/`smoking_status`, fits+saves a `StandardScaler` on the three numeric features, and writes `data/scaler.pkl` and `data/feature_columns.json` for reuse by inference scripts.
+- `split_data()` — stratified 80/20 split; `get_class_weights()` returns balanced weights to handle ~5% stroke prevalence.
+
+`train_logistic.py` runs Bayesian hyperparameter search (100 Optuna trials, maximize CV AUC-ROC) over ElasticNet logistic regression (`penalty="elasticnet"`, solver `"saga"`). After finding best params it evaluates at two thresholds: default 0.5 and an optimal threshold targeting ≥ 85% sensitivity (lowest threshold on the training ROC curve that meets that target).
+
+`train_mlp.py` trains all four MLP configurations defined in `CONFIGS` at the top of the file. Key implementation notes:
+
+- `build_model(config, input_dim)` uses the Keras functional API. If `use_attention=True`, a `Dense(input_dim, activation="softmax")` layer named `"attention_weights"` is multiplied element-wise with the raw inputs via `Multiply()` before the hidden layers. This layer is extracted post-training to derive per-feature attention scores.
+- Each hidden layer block: `Dense` → optional `BatchNormalization` → `LeakyReLU(0.01)` or `ReLU` → optional `Dropout`.
+- Training uses `EarlyStopping(monitor="val_auc", patience=15)` and `ReduceLROnPlateau(monitor="val_auc", patience=7, factor=0.5)` with `validation_split=0.15` and `epochs=150` maximum.
+- Threshold optimization is identical to `train_logistic.py`: lowest threshold on the training ROC achieving ≥ 85% sensitivity.
+- Attention weights (Config D) are extracted by building a sub-model from `model.input` → `model.get_layer("attention_weights").output`, predicting over all training samples, and averaging.
+- The four config names ("Shallow Wide", "Medium Dropout", "Deep Regularized", "Attention Weighted") are sanitized to snake_case for all output filenames.
 
 ## `hypothesis_testing.py`
 
