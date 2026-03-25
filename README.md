@@ -32,7 +32,8 @@ python hypothesis_testing.py  # Group comparison analysis → data/phase2_hypoth
 python train_logistic.py      # Logistic regression baseline → data/lr_model.pkl + data/lr_results.json
 python train_mlp.py           # Four MLP configurations → data/mlp_*
 python shap_analysis.py       # SHAP values + feature importance comparison → data/shap_* + data/feature_importance_comparison.csv
-streamlit run dashboard.py    # Launch interactive dashboard
+streamlit run dashboard.py        # Phase 1/2: descriptive analysis + hypothesis testing
+streamlit run model_dashboard.py  # Phase 3: model results (separate app)
 ```
 
 ## Data Preprocessing
@@ -89,9 +90,13 @@ All models are evaluated at two decision thresholds: default 0.5 and an optimal 
 - Per-model SHAP values and beeswarm/bar plots for the LR baseline and best MLP (by AUC-ROC)
 - `data/feature_importance_comparison.csv` — normalized [0, 1] ranking across LR coefficients, LR SHAP, MLP SHAP, and MLP attention weights, enabling direct comparison of which features drive stroke risk across all methods
 
-## Interactive Dashboard
+## Interactive Dashboards
 
-The Streamlit dashboard (`dashboard.py`) provides eight analysis tabs:
+Two separate Streamlit apps cover different phases of the project.
+
+### Phase 1/2 dashboard (`dashboard.py`)
+
+The Streamlit dashboard provides eight analysis tabs:
 
 - **Cohort Overview** — Summary metrics, data quality report, and IQR outlier flag counts
 - **Table 1** — Clinical manuscript-style Table 1 stratified by stroke outcome; continuous variables as Mean (SD) with Mann-Whitney U p-values, categorical variables as n (%) with chi-square p-values; CSV download included
@@ -103,3 +108,16 @@ The Streamlit dashboard (`dashboard.py`) provides eight analysis tabs:
 - **Phase 2 — Group Comparison** — Mann-Whitney U and chi-square tests comparing stroke vs. no-stroke groups directly, with odds ratios, effect sizes (Cohen's d / Cramér's V), a styled results table, per-feature detail charts, and an OR forest plot covering both binary and dummy-coded categorical variables
 
 Each tab includes an in-app help section explaining how to interpret the results.
+
+### Phase 3 dashboard (`model_dashboard.py`)
+
+Reports all modeling results transparently, showing what happened under the hood:
+
+- **Model Overview** — all five models (LR + 4 MLPs) side by side at both default and optimal thresholds; best-model cards; plain-English threshold explanation
+- **Training Curves** — all four MLP configs on the same axes (AUC-ROC and loss); per-config detailed view with early stopping epoch marked
+- **Logistic Regression Detail** — Optuna optimization history, hyperparameter search space scatter, coefficient and odds-ratio plots, confusion matrices at both thresholds
+- **Neural Network Detail** — per-config architecture table, training subplots, confusion matrices, attention weight chart (Config D)
+- **SHAP Interpretability** — beeswarm and bar plots for LR and best MLP; feature importance comparison table with gradient styling; per-feature cross-method rank cards
+- **Methodology** — written rationale for every modeling decision; data flow diagram; limitations
+
+A sidebar shows file status (✅/❌) for every expected output file with the command needed to generate it.

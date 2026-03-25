@@ -29,7 +29,8 @@ Run scripts in order:
 4. **`train_logistic.py`** — trains ElasticNet logistic regression with Optuna hyperparameter search; outputs `data/lr_model.pkl`, `data/lr_results.json`, `data/lr_coefficients.csv`, `data/optuna_study.pkl`
 5. **`train_mlp.py`** — trains four MLP configurations (see below); outputs per-config `.keras` model files, history/results JSON, `data/mlp_attention_weights.json`, and `data/mlp_comparison.csv`
 6. **`shap_analysis.py`** — SHAP values for LR and best MLP; outputs SHAP arrays, feature importance CSVs, plots, and `data/feature_importance_comparison.csv`
-7. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
+7. **`dashboard.py`** — Streamlit Phase 1/2 analysis dashboard (`streamlit run dashboard.py`)
+8. **`model_dashboard.py`** — Streamlit Phase 3 model results dashboard (`streamlit run model_dashboard.py`)
 
 ```bash
 python retrieve_data.py
@@ -38,7 +39,8 @@ python hypothesis_testing.py
 python train_logistic.py
 python train_mlp.py
 python shap_analysis.py
-streamlit run dashboard.py
+streamlit run dashboard.py         # Phase 1/2 analysis
+streamlit run model_dashboard.py   # Phase 3 model results
 ```
 
 `data/` is gitignored — raw and cleaned CSVs are not committed.
@@ -108,6 +110,16 @@ Eight tabs, each with an in-app `ℹ️` help expander:
 - Threshold optimization is identical to `train_logistic.py`: highest threshold on the training ROC that still achieves ≥ 85% sensitivity (maximizes specificity at the target recall floor).
 - Attention weights (Config D) are extracted by building a sub-model from `model.input` → `model.get_layer("attention_weights").output`, predicting over all training samples, and averaging.
 - The four config names ("Shallow Wide", "Medium Dropout", "Deep Regularized", "Attention Weighted") are sanitized to snake_case for all output filenames.
+
+`model_dashboard.py` is a separate Streamlit app (`streamlit run model_dashboard.py`) reporting Phase 3 results. Key implementation notes:
+
+- **Sidebar file status**: iterates `EXPECTED_FILES` (list of `(label, path, command)` tuples) and shows ✅/❌ per file with the generating command on first appearance of each command. Does not repeat the same command block for every missing file.
+- **Tab 1 — Model Overview**: loads `lr_results.json` and all `mlp_{safe}_results.json` files. Builds two DataFrames (default and optimal threshold) and applies `_style_best()` which highlights the max per metric column via `df.style.apply()`. Best-model metric cards sit above the tables. The threshold explanation paragraph is built programmatically from loaded data.
+- **Tab 2 — Training Curves**: resolves AUC key names dynamically (`next((k for k in h if k == "auc" or k.startswith("auc")), "auc")`) to handle Keras metric naming. Best epoch = `argmax(val_auc)` (0-indexed +1). `add_vline` marks it on all subplots.
+- **Tab 3 — LR Detail**: loads `optuna_study.pkl` via `joblib`; uses `optuna.importance.get_param_importances(study)` wrapped in try/except. Coefficient bars colored red (>0) / blue (<0) / gray (=0). OR plot excludes zeroed features and uses `xaxis_type="log"`. No CI error bars — caption explains why (ElasticNet bias).
+- **Tab 4 — NN Detail**: `_count_params(config, input_dim)` computes total trainable params from the config dict + `data/feature_columns.json` (input_dim). Attention weights section is gated on `cfg.get("use_attention")`.
+- **Tab 5 — SHAP**: `st.image` takes file paths directly. Gradient styling uses `df.style.background_gradient(subset=num_cols, cmap="YlOrRd", axis=0)`. Feature selector shows the selected row's normalized scores as metric cards.
+- Do not use `st.stop()` inside tab blocks — it halts the entire app. Use `if data is not None:` guards instead.
 
 `shap_analysis.py` generates SHAP values for the logistic regression and the best MLP (highest AUC-ROC in `mlp_comparison.csv`). Key implementation notes:
 
