@@ -10,7 +10,7 @@ This is a clinical medical research project that applies machine learning to the
 
 Install dependencies:
 ```bash
-pip install kagglehub[pandas-datasets] python-dotenv scikit-learn pandas numpy scipy streamlit plotly optuna joblib tensorflow
+pip install kagglehub[pandas-datasets] python-dotenv scikit-learn pandas numpy scipy streamlit plotly optuna joblib tensorflow shap
 ```
 
 Kaggle credentials go in a `.env` file (excluded from git):
@@ -28,7 +28,8 @@ Run scripts in order:
 3. **`hypothesis_testing.py`** — Phase 2 group comparison analysis, prints results to console, saves to `data/phase2_hypothesis_results.csv`, and writes a manuscript-style interpretation to `data/phase2_interpretation.txt`
 4. **`train_logistic.py`** — trains ElasticNet logistic regression with Optuna hyperparameter search; outputs `data/lr_model.pkl`, `data/lr_results.json`, `data/lr_coefficients.csv`, `data/optuna_study.pkl`
 5. **`train_mlp.py`** — trains four MLP configurations (see below); outputs per-config `.keras` model files, history/results JSON, `data/mlp_attention_weights.json`, and `data/mlp_comparison.csv`
-6. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
+6. **`shap_analysis.py`** — SHAP values for LR and best MLP; outputs SHAP arrays, feature importance CSVs, plots, and `data/feature_importance_comparison.csv`
+7. **`dashboard.py`** — Streamlit interactive analysis dashboard (reads `data/stroke_data_clean.csv`)
 
 ```bash
 python retrieve_data.py
@@ -36,6 +37,7 @@ python feature_engineering.py
 python hypothesis_testing.py
 python train_logistic.py
 python train_mlp.py
+python shap_analysis.py
 streamlit run dashboard.py
 ```
 
@@ -106,6 +108,13 @@ Eight tabs, each with an in-app `ℹ️` help expander:
 - Threshold optimization is identical to `train_logistic.py`: highest threshold on the training ROC that still achieves ≥ 85% sensitivity (maximizes specificity at the target recall floor).
 - Attention weights (Config D) are extracted by building a sub-model from `model.input` → `model.get_layer("attention_weights").output`, predicting over all training samples, and averaging.
 - The four config names ("Shallow Wide", "Medium Dropout", "Deep Regularized", "Attention Weighted") are sanitized to snake_case for all output filenames.
+
+`shap_analysis.py` generates SHAP values for the logistic regression and the best MLP (highest AUC-ROC in `mlp_comparison.csv`). Key implementation notes:
+
+- **LR**: `shap.LinearExplainer(model, X_train)` — analytical SHAP for linear models; background is the full training set.
+- **MLP**: tries `shap.DeepExplainer(model, background_100)` first; catches any exception and falls back to `shap.KernelExplainer` with the same 100-sample background and `nsamples=100`. `_to_2d()` normalizes all SHAP output forms (list-wrapped, Explanation object, 3D tensor) to a `(n_samples, n_features)` float32 array.
+- **Section 3 comparison**: merges `lr_coefficients.csv` (`abs_coef`), both SHAP importance CSVs, and `mlp_attention_weights.json` onto the canonical feature list; min-max normalizes each column to [0, 1] so rankings are directly comparable. Features absent from attention weights (non-attention configs) get NaN.
+- Plots use `matplotlib.use("Agg")` (set before pyplot import) so they render without a display on Windows.
 
 ## `hypothesis_testing.py`
 

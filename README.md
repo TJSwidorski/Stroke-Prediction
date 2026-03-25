@@ -14,7 +14,7 @@ with 11 clinical features.
 ## Setup
 
 ```bash
-pip install kagglehub[pandas-datasets] python-dotenv scikit-learn pandas numpy scipy streamlit plotly optuna joblib tensorflow
+pip install kagglehub[pandas-datasets] python-dotenv scikit-learn pandas numpy scipy streamlit plotly optuna joblib tensorflow shap
 ```
 
 Create a `.env` file in the project root with your Kaggle credentials:
@@ -31,6 +31,7 @@ python feature_engineering.py # Impute missing values → data/stroke_data_clean
 python hypothesis_testing.py  # Group comparison analysis → data/phase2_hypothesis_results.csv + data/phase2_interpretation.txt
 python train_logistic.py      # Logistic regression baseline → data/lr_model.pkl + data/lr_results.json
 python train_mlp.py           # Four MLP configurations → data/mlp_*
+python shap_analysis.py       # SHAP values + feature importance comparison → data/shap_* + data/feature_importance_comparison.csv
 streamlit run dashboard.py    # Launch interactive dashboard
 ```
 
@@ -82,7 +83,11 @@ Preprocessing (shared via `preprocessing.py`):
 
 The Attention Weighted config prepends a `softmax` Dense layer that learns per-feature importance weights, multiplied element-wise with the inputs. These weights are averaged across training samples and saved to `data/mlp_attention_weights.json`.
 
-All models are evaluated at two decision thresholds: default 0.5 and an optimal threshold targeting ≥ 85% sensitivity (lowest threshold on the training ROC curve meeting that target), reflecting the clinical priority of minimizing missed strokes.
+All models are evaluated at two decision thresholds: default 0.5 and an optimal threshold targeting ≥ 85% sensitivity (highest threshold on the training ROC curve still meeting that target, maximizing specificity), reflecting the clinical priority of minimizing missed strokes.
+
+**SHAP feature importance** (`shap_analysis.py`) — runs after both model scripts and produces:
+- Per-model SHAP values and beeswarm/bar plots for the LR baseline and best MLP (by AUC-ROC)
+- `data/feature_importance_comparison.csv` — normalized [0, 1] ranking across LR coefficients, LR SHAP, MLP SHAP, and MLP attention weights, enabling direct comparison of which features drive stroke risk across all methods
 
 ## Interactive Dashboard
 
