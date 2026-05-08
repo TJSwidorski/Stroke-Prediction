@@ -151,6 +151,8 @@ The Streamlit dashboard provides eight analysis tabs:
 
 Each tab includes an in-app help section explaining how to interpret the results.
 
+![Phase 1/2 Analysis Dashboard](./dashboard.png)
+
 ### Phase 3 dashboard (`model_dashboard.py`)
 
 Reports all modeling results transparently, showing what happened under the hood:
@@ -163,3 +165,5 @@ Reports all modeling results transparently, showing what happened under the hood
 - **Methodology** — written rationale for every modeling decision; data flow diagram; limitations
 
 A sidebar shows file status (✅/❌) for every expected output file with the command needed to generate it.
+
+![Phase 3 Analysis Dashboard](./model_dashboard.png)
