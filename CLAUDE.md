@@ -29,8 +29,7 @@ Run scripts in order:
 4. **`train_logistic.py`** — trains ElasticNet logistic regression with Optuna hyperparameter search; outputs `data/lr_model.pkl`, `data/lr_results.json`, `data/lr_coefficients.csv`, `data/optuna_study.pkl`
 5. **`train_mlp.py`** — trains four MLP configurations (see below); outputs per-config `.keras` model files, history/results JSON, `data/mlp_attention_weights.json`, and `data/mlp_comparison.csv`
 6. **`shap_analysis.py`** — SHAP values for LR and best MLP; outputs SHAP arrays, feature importance CSVs, plots, and `data/feature_importance_comparison.csv`
-7. **`dashboard.py`** — Streamlit Phase 1/2 analysis dashboard (`streamlit run dashboard.py`)
-8. **`model_dashboard.py`** — Streamlit Phase 3 model results dashboard (`streamlit run model_dashboard.py`)
+7. **`app.py`** — unified Streamlit dashboard (`streamlit run app.py`); sidebar nav switches between Phase 1/2 and Phase 3 sections. `dashboard.py` and `model_dashboard.py` are imported as modules and expose a `render()` function each.
 
 ```bash
 python retrieve_data.py
@@ -39,8 +38,7 @@ python hypothesis_testing.py
 python train_logistic.py
 python train_mlp.py
 python shap_analysis.py
-streamlit run dashboard.py         # Phase 1/2 analysis
-streamlit run model_dashboard.py   # Phase 3 model results
+streamlit run app.py               # unified dashboard (Phase 1/2 + Phase 3)
 ```
 
 `data/` is gitignored — raw and cleaned CSVs are not committed.
