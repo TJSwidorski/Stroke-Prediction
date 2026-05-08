@@ -1,0 +1,36 @@
+DATA QUALITY REPORT
+===================
+
+Run timestamp : 2026-03-20 22:24:48
+
+ORIGINAL DATASET
+----------------
+  Rows    : 5110
+  Columns : 12
+
+BMI IMPUTATION (KNN, k=5)
+-------------------------
+  NaN values imputed : 201
+  Pre-imputation  mean : 28.8932  std : 7.8541
+  Post-imputation mean : 28.9396  std : 7.7635
+
+SMOKING STATUS IMPUTATION (KNN, k=5)
+-------------------------------------
+  'Unknown' values resolved : 1544
+  Resolved to:
+    never smoked         : 875
+    formerly smoked      : 653
+    smokes               : 16
+
+OUTLIER FLAGS (IQR 1.5x fence)
+------------------------------
+  age                    : 0 rows flagged
+  avg_glucose_level      : 627 rows flagged
+  bmi                    : 110 rows flagged
+  (total unique rows)    : 709 rows flagged across all variables
+
+FINAL DATASET
+-------------
+  Rows    : 5110
+  Columns : 15
+  Missing values : 0 (PASS)

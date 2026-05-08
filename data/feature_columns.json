@@ -1,0 +1,16 @@
+[
+  "age",
+  "hypertension",
+  "heart_disease",
+  "ever_married",
+  "avg_glucose_level",
+  "bmi",
+  "work_type_Govt_job",
+  "work_type_Never_worked",
+  "work_type_Private",
+  "work_type_Self-employed",
+  "work_type_children",
+  "smoking_status_formerly smoked",
+  "smoking_status_never smoked",
+  "smoking_status_smokes"
+]

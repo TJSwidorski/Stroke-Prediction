@@ -1,0 +1,15 @@
+feature,mean_abs_shap
+age,0.25509414
+bmi,0.053398304
+work_type_Self-employed,0.043767728
+work_type_children,0.03687382
+avg_glucose_level,0.03606264
+work_type_Private,0.03425421
+smoking_status_formerly smoked,0.026604615
+smoking_status_never smoked,0.025997106
+work_type_Govt_job,0.018042918
+ever_married,0.01746393
+hypertension,0.0153467795
+heart_disease,0.011669644
+smoking_status_smokes,0.010265519
+work_type_Never_worked,2.0736154e-07

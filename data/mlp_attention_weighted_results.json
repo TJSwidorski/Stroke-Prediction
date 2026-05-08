@@ -1,0 +1,50 @@
+{
+  "config": {
+    "name": "Attention Weighted",
+    "layers": [
+      64,
+      32
+    ],
+    "dropout_rate": 0.2,
+    "l2_reg": 0.0,
+    "use_batch_norm": false,
+    "use_leaky_relu": false,
+    "use_attention": true,
+    "learning_rate": 0.001,
+    "batch_size": 32
+  },
+  "default_threshold": 0.5,
+  "optimal_threshold": 0.5311,
+  "metrics_default": {
+    "threshold": 0.5,
+    "accuracy": 0.7515,
+    "sensitivity": 0.62,
+    "specificity": 0.7582,
+    "precision": 0.1165,
+    "npv": 0.9749,
+    "f1": 0.1962,
+    "roc_auc": 0.7709,
+    "confusion_matrix": {
+      "tn": 737,
+      "fp": 235,
+      "fn": 19,
+      "tp": 31
+    }
+  },
+  "metrics_optimal": {
+    "threshold": 0.5311190485954285,
+    "accuracy": 0.7759,
+    "sensitivity": 0.62,
+    "specificity": 0.784,
+    "precision": 0.1286,
+    "npv": 0.9757,
+    "f1": 0.2131,
+    "roc_auc": 0.7709,
+    "confusion_matrix": {
+      "tn": 762,
+      "fp": 210,
+      "fn": 19,
+      "tp": 31
+    }
+  }
+}

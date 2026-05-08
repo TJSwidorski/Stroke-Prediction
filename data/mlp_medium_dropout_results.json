@@ -1,0 +1,50 @@
+{
+  "config": {
+    "name": "Medium Dropout",
+    "layers": [
+      64,
+      32
+    ],
+    "dropout_rate": 0.3,
+    "l2_reg": 0.0,
+    "use_batch_norm": false,
+    "use_leaky_relu": false,
+    "use_attention": false,
+    "learning_rate": 0.001,
+    "batch_size": 32
+  },
+  "default_threshold": 0.5,
+  "optimal_threshold": 0.5814,
+  "metrics_default": {
+    "threshold": 0.5,
+    "accuracy": 0.7436,
+    "sensitivity": 0.72,
+    "specificity": 0.7449,
+    "precision": 0.1268,
+    "npv": 0.981,
+    "f1": 0.2156,
+    "roc_auc": 0.8023,
+    "confusion_matrix": {
+      "tn": 724,
+      "fp": 248,
+      "fn": 14,
+      "tp": 36
+    }
+  },
+  "metrics_optimal": {
+    "threshold": 0.5813648700714111,
+    "accuracy": 0.7965,
+    "sensitivity": 0.68,
+    "specificity": 0.8025,
+    "precision": 0.1504,
+    "npv": 0.9799,
+    "f1": 0.2464,
+    "roc_auc": 0.8023,
+    "confusion_matrix": {
+      "tn": 780,
+      "fp": 192,
+      "fn": 16,
+      "tp": 34
+    }
+  }
+}

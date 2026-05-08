@@ -1,0 +1,49 @@
+{
+  "config": {
+    "name": "Shallow Wide",
+    "layers": [
+      128
+    ],
+    "dropout_rate": 0.0,
+    "l2_reg": 0.0,
+    "use_batch_norm": false,
+    "use_leaky_relu": false,
+    "use_attention": false,
+    "learning_rate": 0.001,
+    "batch_size": 32
+  },
+  "default_threshold": 0.5,
+  "optimal_threshold": 0.4998,
+  "metrics_default": {
+    "threshold": 0.5,
+    "accuracy": 0.7955,
+    "sensitivity": 0.62,
+    "specificity": 0.8045,
+    "precision": 0.1403,
+    "npv": 0.9763,
+    "f1": 0.2288,
+    "roc_auc": 0.7842,
+    "confusion_matrix": {
+      "tn": 782,
+      "fp": 190,
+      "fn": 19,
+      "tp": 31
+    }
+  },
+  "metrics_optimal": {
+    "threshold": 0.4997500479221344,
+    "accuracy": 0.7955,
+    "sensitivity": 0.62,
+    "specificity": 0.8045,
+    "precision": 0.1403,
+    "npv": 0.9763,
+    "f1": 0.2288,
+    "roc_auc": 0.7842,
+    "confusion_matrix": {
+      "tn": 782,
+      "fp": 190,
+      "fn": 19,
+      "tp": 31
+    }
+  }
+}

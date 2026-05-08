@@ -1,0 +1,27 @@
+Phase 2 - Hypothesis Testing Interpretation
+Generated: 2026-03-24 15:25:49
+======================================================================
+
+PRIMARY FINDINGS
+----------------------------------------------------------------------
+Age was significantly higher in stroke patients (median 71.0 [IQR 59.0-78.0] years vs. 43.0 [IQR 24.0-59.0] years, p < 0.001, Cohen's d = 1.175 — large effect). This suggests that older individuals face substantially greater stroke risk, consistent with the well-established age-related deterioration of vascular health.
+
+Average glucose level was significantly higher in stroke patients (median 105.2 [IQR 79.8-196.7] mg/dL vs. 91.5 [IQR 77.1-112.8] mg/dL, p < 0.001, Cohen's d = 0.618 — medium effect). Elevated glucose levels likely reflect chronic hyperglycemia or undiagnosed diabetes, both of which promote endothelial dysfunction and thrombogenesis.
+
+Bmi was significantly higher in stroke patients (median 29.5 [IQR 26.5-33.0] kg/m2 vs. 28.1 [IQR 23.5-33.1] kg/m2, p < 0.001, Cohen's d = 0.185 — negligible effect). Higher BMI may contribute to stroke risk through its associations with hypertension, dyslipidemia, and metabolic syndrome, though the effect here is modest.
+
+SECONDARY FINDINGS
+----------------------------------------------------------------------
+Heart disease: higher odds of stroke (OR = 4.70, p < 0.001).
+Hypertension: higher odds of stroke (OR = 3.70, p < 0.001).
+Ever married: higher odds of stroke (OR = 4.18, p < 0.001).
+Work type: distribution differs by stroke outcome (p < 0.001, Cramer's V = 0.098).
+Smoking status: distribution differs by stroke outcome (p < 0.001, Cramer's V = 0.055).
+
+NON-SIGNIFICANT FEATURES
+----------------------------------------------------------------------
+The following features did not reach statistical significance (p >= 0.05) and showed no meaningful association with stroke outcome in this dataset: gender, Residence type.
+
+LIMITATIONS
+----------------------------------------------------------------------
+These analyses are based on a cross-sectional observational dataset and therefore cannot establish causal relationships between risk factors and stroke. The dataset exhibits marked class imbalance (approximately 5% stroke prevalence), which may reduce the power to detect true associations in smaller subgroups. No correction for multiple comparisons (e.g., Bonferroni) was applied; findings should be interpreted with caution given the number of simultaneous hypothesis tests performed. Categorical variables were ordinally encoded for the correlation matrix only and do not imply a true ordinal relationship between categories.

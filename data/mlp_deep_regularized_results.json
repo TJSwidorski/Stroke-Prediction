@@ -1,0 +1,51 @@
+{
+  "config": {
+    "name": "Deep Regularized",
+    "layers": [
+      128,
+      64,
+      32
+    ],
+    "dropout_rate": 0.3,
+    "l2_reg": 0.001,
+    "use_batch_norm": false,
+    "use_leaky_relu": false,
+    "use_attention": false,
+    "learning_rate": 0.001,
+    "batch_size": 32
+  },
+  "default_threshold": 0.5,
+  "optimal_threshold": 0.5396,
+  "metrics_default": {
+    "threshold": 0.5,
+    "accuracy": 0.7583,
+    "sensitivity": 0.66,
+    "specificity": 0.7634,
+    "precision": 0.1255,
+    "npv": 0.9776,
+    "f1": 0.2109,
+    "roc_auc": 0.7922,
+    "confusion_matrix": {
+      "tn": 742,
+      "fp": 230,
+      "fn": 17,
+      "tp": 33
+    }
+  },
+  "metrics_optimal": {
+    "threshold": 0.53957200050354,
+    "accuracy": 0.7857,
+    "sensitivity": 0.64,
+    "specificity": 0.7932,
+    "precision": 0.1373,
+    "npv": 0.9772,
+    "f1": 0.2261,
+    "roc_auc": 0.7922,
+    "confusion_matrix": {
+      "tn": 771,
+      "fp": 201,
+      "fn": 18,
+      "tp": 32
+    }
+  }
+}

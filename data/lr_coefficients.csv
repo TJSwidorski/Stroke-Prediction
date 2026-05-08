@@ -1,0 +1,15 @@
+feature,coefficient,odds_ratio,abs_coef
+age,1.2763767,3.583632,1.2763767
+avg_glucose_level,0.2059942,1.228746,0.2059942
+hypertension,0.20563968,1.2283105,0.20563968
+smoking_status_never smoked,-0.06483511,0.93722194,0.06483511
+heart_disease,0.05334422,1.0547926,0.05334422
+ever_married,0.0,1.0,0.0
+bmi,0.0,1.0,0.0
+work_type_Govt_job,0.0,1.0,0.0
+work_type_Private,0.0,1.0,0.0
+work_type_Never_worked,0.0,1.0,0.0
+work_type_Self-employed,0.0,1.0,0.0
+work_type_children,0.0,1.0,0.0
+smoking_status_formerly smoked,0.0,1.0,0.0
+smoking_status_smokes,0.0,1.0,0.0
