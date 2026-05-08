@@ -1,20 +1,16 @@
-# Core data
-pandas==2.2.3
-numpy==2.2.5
-scipy==1.15.2
+# Dashboard runtime (Streamlit Cloud)
+pandas
+numpy
+scipy
+plotly
+streamlit
+joblib
+optuna
 
-# Machine learning
-scikit-learn==1.6.1
-tensorflow==2.21.0
-optuna==4.4.0
-joblib==1.4.2
-shap==0.51.0
-
-# Visualisation
-matplotlib==3.10.3
-plotly==6.1.2
-streamlit==1.46.1
-
-# Data acquisition
-kagglehub[pandas-datasets]==0.3.13
-python-dotenv==1.1.1
+# Local pipeline only (not needed on Streamlit Cloud)
+# scikit-learn
+# tensorflow
+# shap
+# matplotlib
+# kagglehub[pandas-datasets]
+# python-dotenv
